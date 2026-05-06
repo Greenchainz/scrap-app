@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Scrappalot",
+    "slug": "scrap-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a7f4b"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.greenchainz.scrappalot",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used to photograph scrap metal items for analysis.",
+        "NSLocationWhenInUseUsageDescription": "Used to calculate regional scrap metal prices."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1a7f4b"
+      },
+      "package": "com.greenchainz.scrappalot",
+      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION"]
+    },
+    "plugins": [
+      "expo-camera",
+      "expo-location",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Used to select photos for scrap analysis."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": {
+        "development": "http://localhost:3000",
+        "staging": "https://scrap-app-staging.azurecontainerapps.io",
+        "production": "https://scrap-app.azurecontainerapps.io"
+      }
+    }
+  }
+}
