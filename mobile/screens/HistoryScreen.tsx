@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   StyleSheet,
 } from 'react-native';
 import { getCachedScans, type CachedScan } from '../utils/cache.js';
-import { useFocusEffect } from '@react-navigation/native';
 
 type Props = {
   onSelectScan: (scan: CachedScan) => void;
@@ -16,11 +15,9 @@ type Props = {
 export default function HistoryScreen({ onSelectScan }: Props) {
   const [scans, setScans] = useState<CachedScan[]>([]);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      getCachedScans().then(setScans).catch(() => setScans([]));
-    }, []),
-  );
+  useEffect(() => {
+    getCachedScans().then(setScans).catch(() => setScans([]));
+  }, []);
 
   if (scans.length === 0) {
     return (
