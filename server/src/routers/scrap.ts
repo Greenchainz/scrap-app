@@ -8,6 +8,7 @@ const AnalyzeInputSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   state: z.string().optional(),
+  manufactureYear: z.number().int().min(1900).max(2026).optional(),
 });
 
 export const scrapRouter = router({
@@ -18,7 +19,7 @@ export const scrapRouter = router({
 
       let analysis: Awaited<ReturnType<typeof analyzeScrapImage>>;
       try {
-        analysis = await analyzeScrapImage(input.imageUrl, multiplier);
+        analysis = await analyzeScrapImage(input.imageUrl, multiplier, input.manufactureYear);
       } catch (err) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
