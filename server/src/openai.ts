@@ -115,7 +115,7 @@ export async function analyzeScrapImage(
 ): Promise<z.infer<typeof RawAnalysisSchema> & {
   metals: Array<{ type: string; weightRange: string; percentage: number; valueLow: number; valueHigh: number }>;
 }> {
-  const eraContext = manufactureYear != null
+  const eraContext = manufactureYear !== undefined
     ? `\n\nERA CONTEXT (object manufactured in ${manufactureYear}):\n${buildEraContext(manufactureYear)}\nUse this era knowledge to refine your metal type and weight estimates before analyzing the image.`
     : '';
 

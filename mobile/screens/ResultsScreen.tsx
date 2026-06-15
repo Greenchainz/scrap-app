@@ -11,6 +11,9 @@ import type { ScanResult } from './CameraScreen.js';
 type Props = {
   result: ScanResult;
   onScanAgain: () => void;
+  sessionCount: number;
+  sessionTotalLow: number;
+  sessionTotalHigh: number;
 };
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -19,7 +22,7 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   hard: '#c0392b',
 };
 
-export default function ResultsScreen({ result, onScanAgain }: Props) {
+export default function ResultsScreen({ result, onScanAgain, sessionCount, sessionTotalLow, sessionTotalHigh }: Props) {
   const totalLow = result.estimatedValueLow.toFixed(2);
   const totalHigh = result.estimatedValueHigh.toFixed(2);
   const difficultyColor = DIFFICULTY_COLORS[result.difficulty] ?? '#555';
@@ -37,6 +40,15 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
           <Text style={styles.difficultyText}>{result.difficulty.toUpperCase()} to disassemble</Text>
         </View>
       </View>
+
+      {sessionCount > 1 && (
+        <View style={styles.sessionCard}>
+          <Text style={styles.sessionLabel}>Session Total ({sessionCount} items)</Text>
+          <Text style={styles.sessionAmount}>
+            ${sessionTotalLow.toFixed(2)} – ${sessionTotalHigh.toFixed(2)}
+          </Text>
+        </View>
+      )}
 
       <Text style={styles.sectionTitle}>Metal Breakdown</Text>
       {result.metals.map((metal, i) => (
@@ -127,6 +139,28 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  sessionCard: {
+    backgroundColor: '#e8f5ee',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#1a7f4b',
+  },
+  sessionLabel: {
+    fontSize: 12,
+    color: '#1a7f4b',
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sessionAmount: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1a7f4b',
   },
   sectionTitle: {
     fontSize: 16,

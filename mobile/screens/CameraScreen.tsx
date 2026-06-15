@@ -109,7 +109,10 @@ export default function CameraScreen({ onScanComplete }: Props) {
         latitude,
         longitude,
         state,
-        manufactureYear: yearInput.length === 4 ? parseInt(yearInput, 10) : undefined,
+        manufactureYear: (() => {
+          const y = parseInt(yearInput, 10);
+          return !isNaN(y) && y >= 1900 && y <= 2026 ? y : undefined;
+        })(),
       });
 
       const scanResult: ScanResult = { ...result, imageUrl: blobUrl };
