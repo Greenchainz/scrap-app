@@ -2,11 +2,13 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -39,6 +41,7 @@ export default function CameraScreen({ onScanComplete }: Props) {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [facing] = useState<CameraType>('back');
   const [analyzing, setAnalyzing] = useState(false);
+  const [yearInput, setYearInput] = useState('');
   const cameraRef = useRef<CameraView>(null);
 
   const getSasToken = trpc.scrap.getSasToken.useMutation();
@@ -106,6 +109,10 @@ export default function CameraScreen({ onScanComplete }: Props) {
         latitude,
         longitude,
         state,
+        manufactureYear: (() => {
+          const y = parseInt(yearInput, 10);
+          return !isNaN(y) && y >= 1900 && y <= 2026 ? y : undefined;
+        })(),
       });
 
       const scanResult: ScanResult = { ...result, imageUrl: blobUrl };
@@ -122,9 +129,21 @@ export default function CameraScreen({ onScanComplete }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <CameraView style={styles.camera} facing={facing} ref={cameraRef}>
         <View style={styles.overlay}>
+          <View style={styles.yearRow}>
+            <TextInput
+              style={styles.yearInput}
+              placeholder="Year made (optional)"
+              placeholderTextColor="rgba(255,255,255,0.6)"
+              keyboardType="number-pad"
+              maxLength={4}
+              value={yearInput}
+              onChangeText={setYearInput}
+              returnKeyType="done"
+            />
+          </View>
           {analyzing ? (
             <View style={styles.analyzingContainer}>
               <ActivityIndicator size="large" color="#ffffff" />
@@ -137,7 +156,7 @@ export default function CameraScreen({ onScanComplete }: Props) {
           )}
         </View>
       </CameraView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -154,6 +173,24 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingBottom: Platform.OS === 'ios' ? 48 : 32,
+  },
+  yearRow: {
+    width: '100%',
+    paddingHorizontal: 32,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  yearInput: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: '#ffffff',
+    textAlign: 'center',
+    width: 200,
   },
   captureButton: {
     width: 72,
