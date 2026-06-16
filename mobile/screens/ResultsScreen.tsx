@@ -38,6 +38,43 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
         </View>
       </View>
 
+      {result.era && (
+        <View style={styles.eraCard}>
+          <Text style={styles.eraTitle}>🏭 Manufacturing Era</Text>
+          {result.era.profile ? (
+            <>
+              <Text style={styles.eraLabel}>{result.era.profile.label}</Text>
+              <Text style={styles.eraYears}>
+                {result.era.profile.yearsLabel}
+                {result.era.decoded.year ? `  ·  Built ~${result.era.decoded.year}` : ''}
+                {`  ·  ${result.era.decoded.confidence} confidence`}
+              </Text>
+              <View style={styles.eraSpecRow}>
+                <Text style={styles.eraSpecLabel}>Structure</Text>
+                <Text style={styles.eraSpecValue}>{result.era.profile.structuralMaterial}</Text>
+              </View>
+              <View style={styles.eraSpecRow}>
+                <Text style={styles.eraSpecLabel}>Motor winding</Text>
+                <Text style={styles.eraSpecValue}>{result.era.profile.motorWinding}</Text>
+              </View>
+              <View style={styles.eraSpecRow}>
+                <Text style={styles.eraSpecLabel}>Typical washer wt.</Text>
+                <Text style={styles.eraSpecValue}>
+                  {result.era.profile.washerWeightLbs.low}–{result.era.profile.washerWeightLbs.high} lbs
+                </Text>
+              </View>
+              {result.era.profile.insights.map((insight, i) => (
+                <Text key={i} style={styles.eraInsight}>• {insight}</Text>
+              ))}
+            </>
+          ) : (
+            <Text style={styles.eraNote}>
+              {result.era.decoded.note ?? 'Could not determine the manufacturing year from this serial number.'}
+            </Text>
+          )}
+        </View>
+      )}
+
       <Text style={styles.sectionTitle}>Metal Breakdown</Text>
       {result.metals.map((metal, i) => (
         <View key={i} style={styles.metalRow}>
@@ -127,6 +164,69 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  eraCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: '#1a7f4b',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  eraTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 6,
+  },
+  eraLabel: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1a7f4b',
+  },
+  eraYears: {
+    fontSize: 12,
+    color: '#777',
+    marginBottom: 10,
+    textTransform: 'capitalize',
+  },
+  eraSpecRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  eraSpecLabel: {
+    fontSize: 13,
+    color: '#888',
+    flexShrink: 0,
+    marginRight: 12,
+  },
+  eraSpecValue: {
+    fontSize: 13,
+    color: '#222',
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+    textTransform: 'capitalize',
+  },
+  eraInsight: {
+    fontSize: 13,
+    color: '#444',
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  eraNote: {
+    fontSize: 13,
+    color: '#777',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
   sectionTitle: {
     fontSize: 16,

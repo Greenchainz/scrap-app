@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { EraInfo } from '../screens/CameraScreen.js';
 
 const CACHE_KEY = 'scrap_scan_cache';
 const MAX_CACHED = 10;
@@ -19,6 +20,7 @@ export type CachedScan = {
   estimatedValueLow: number;
   estimatedValueHigh: number;
   imageUrl: string;
+  era?: EraInfo | null;
   cachedAt: string;
 };
 

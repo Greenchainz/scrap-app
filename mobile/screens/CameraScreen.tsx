@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -15,6 +16,30 @@ import { cacheScan } from '../utils/cache.js';
 
 type Props = {
   onScanComplete: (result: ScanResult) => void;
+};
+
+export type DecodedEra = {
+  brand: string;
+  year: number | null;
+  month: number | null;
+  candidateYears: number[];
+  confidence: 'high' | 'medium' | 'low';
+  note?: string;
+};
+
+export type EraProfile = {
+  epoch: 'heavy_iron' | 'polymer_shift' | 'high_efficiency' | 'smart_ie5';
+  label: string;
+  yearsLabel: string;
+  structuralMaterial: string;
+  motorWinding: 'copper' | 'aluminum' | 'mixed';
+  washerWeightLbs: { low: number; high: number };
+  insights: string[];
+};
+
+export type EraInfo = {
+  decoded: DecodedEra;
+  profile: EraProfile | null;
 };
 
 export type ScanResult = {
@@ -33,12 +58,15 @@ export type ScanResult = {
   estimatedValueLow: number;
   estimatedValueHigh: number;
   imageUrl: string;
+  era?: EraInfo | null;
 };
 
 export default function CameraScreen({ onScanComplete }: Props) {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [facing] = useState<CameraType>('back');
   const [analyzing, setAnalyzing] = useState(false);
+  const [brand, setBrand] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
   const cameraRef = useRef<CameraView>(null);
 
   const getSasToken = trpc.scrap.getSasToken.useMutation();
@@ -106,6 +134,8 @@ export default function CameraScreen({ onScanComplete }: Props) {
         latitude,
         longitude,
         state,
+        brand: brand.trim() || undefined,
+        serialNumber: serialNumber.trim() || undefined,
       });
 
       const scanResult: ScanResult = { ...result, imageUrl: blobUrl };
@@ -131,9 +161,32 @@ export default function CameraScreen({ onScanComplete }: Props) {
               <Text style={styles.analyzingText}>Analyzing metals...</Text>
             </View>
           ) : (
-            <TouchableOpacity style={styles.captureButton} onPress={handleCapture}>
-              <View style={styles.captureInner} />
-            </TouchableOpacity>
+            <>
+              <View style={styles.inputPanel}>
+                <Text style={styles.inputHint}>Add brand + serial to unlock manufacturing-era insights</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Brand (optional, e.g. Whirlpool)"
+                  placeholderTextColor="rgba(255,255,255,0.7)"
+                  value={brand}
+                  onChangeText={setBrand}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Serial # (optional)"
+                  placeholderTextColor="rgba(255,255,255,0.7)"
+                  value={serialNumber}
+                  onChangeText={setSerialNumber}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                />
+              </View>
+              <TouchableOpacity style={styles.captureButton} onPress={handleCapture}>
+                <View style={styles.captureInner} />
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </CameraView>
@@ -170,6 +223,28 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     backgroundColor: '#ffffff',
+  },
+  inputPanel: {
+    width: '100%',
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    gap: 8,
+  },
+  inputHint: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  input: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: '#ffffff',
+    fontSize: 15,
   },
   analyzingContainer: {
     alignItems: 'center',

@@ -1,6 +1,7 @@
 import { router, publicProcedure, TRPCError, z } from '../trpc';
 import { analyzeScrapImage } from '../openai';
 import { getRegionalMultiplier, calculateTotalValue } from '../pricing';
+import { decodeSerialNumber, describeEra } from '../era';
 import { db, schema } from '../db';
 
 const AnalyzeInputSchema = z.object({
@@ -8,6 +9,8 @@ const AnalyzeInputSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   state: z.string().optional(),
+  brand: z.string().optional(),
+  serialNumber: z.string().optional(),
 });
 
 export const scrapRouter = router({
@@ -28,6 +31,13 @@ export const scrapRouter = router({
 
       const { totalLow, totalHigh } = calculateTotalValue(analysis.metals);
 
+      const decoded =
+        input.brand && input.serialNumber
+          ? decodeSerialNumber(input.brand, input.serialNumber)
+          : null;
+      const eraProfile = decoded ? describeEra(decoded) : null;
+      const era = decoded ? { decoded, profile: eraProfile } : null;
+
       let scanId: number | undefined;
       try {
         const inserted = await db
@@ -35,7 +45,7 @@ export const scrapRouter = router({
           .values({
             imageUrl: input.imageUrl,
             objectName: analysis.objectName,
-            analysis: analysis as unknown as Record<string, unknown>,
+            analysis: { ...analysis, era } as unknown as Record<string, unknown>,
             estimatedValueLow: totalLow,
             estimatedValueHigh: totalHigh,
             latitude: input.latitude,
@@ -56,6 +66,7 @@ export const scrapRouter = router({
         safetyWarnings: analysis.safetyWarnings,
         estimatedValueLow: totalLow,
         estimatedValueHigh: totalHigh,
+        era,
       };
     }),
 
@@ -68,6 +79,14 @@ export const scrapRouter = router({
         .orderBy(schema.scans.createdAt)
         .limit(input.limit);
       return rows;
+    }),
+
+  decodeSerial: publicProcedure
+    .input(z.object({ brand: z.string().min(1), serialNumber: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const decoded = decodeSerialNumber(input.brand, input.serialNumber);
+      const profile = describeEra(decoded);
+      return { decoded, profile };
     }),
 
   getSasToken: publicProcedure
