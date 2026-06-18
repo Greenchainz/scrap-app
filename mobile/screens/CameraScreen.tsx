@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Animated,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -68,6 +69,52 @@ export default function CameraScreen({ onScanComplete }: Props) {
   const [brand, setBrand] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const cameraRef = useRef<CameraView>(null);
+
+  // Pulsing glow ring behind capture button
+  const glowScale = useRef(new Animated.Value(1)).current;
+  const glowOpacity = useRef(new Animated.Value(0.6)).current;
+  // Radar spin while analyzing — store loop ref so we can stop it cleanly
+  const radarRotation = useRef(new Animated.Value(0)).current;
+  const radarLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    // Glow pulse — always running
+    Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(glowScale, { toValue: 1.45, duration: 900, useNativeDriver: true }),
+          Animated.timing(glowOpacity, { toValue: 0, duration: 900, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(glowScale, { toValue: 1, duration: 0, useNativeDriver: true }),
+          Animated.timing(glowOpacity, { toValue: 0.6, duration: 0, useNativeDriver: true }),
+        ]),
+      ]),
+    ).start();
+  }, [glowScale, glowOpacity]);
+
+  useEffect(() => {
+    if (analyzing) {
+      radarRotation.setValue(0);
+      radarLoopRef.current = Animated.loop(
+        Animated.timing(radarRotation, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      );
+      radarLoopRef.current.start();
+    } else {
+      radarLoopRef.current?.stop();
+      radarLoopRef.current = null;
+      radarRotation.setValue(0);
+    }
+  }, [analyzing, radarRotation]);
+
+  const radarSpin = radarRotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   const getSasToken = trpc.scrap.getSasToken.useMutation();
   const analyzeImage = trpc.scrap.analyzeImage.useMutation();
@@ -157,7 +204,13 @@ export default function CameraScreen({ onScanComplete }: Props) {
         <View style={styles.overlay}>
           {analyzing ? (
             <View style={styles.analyzingContainer}>
-              <ActivityIndicator size="large" color="#ffffff" />
+              {/* Radar spin ring */}
+              <View style={styles.radarWrapper}>
+                <Animated.View
+                  style={[styles.radarRing, { transform: [{ rotate: radarSpin }] }]}
+                />
+                <ActivityIndicator size="large" color="#ffffff" style={styles.radarSpinner} />
+              </View>
               <Text style={styles.analyzingText}>Analyzing metals...</Text>
             </View>
           ) : (
@@ -183,9 +236,19 @@ export default function CameraScreen({ onScanComplete }: Props) {
                   autoCorrect={false}
                 />
               </View>
-              <TouchableOpacity style={styles.captureButton} onPress={handleCapture}>
-                <View style={styles.captureInner} />
-              </TouchableOpacity>
+
+              {/* Pulsing glow ring + capture button */}
+              <View style={styles.captureWrapper}>
+                <Animated.View
+                  style={[
+                    styles.glowRing,
+                    { transform: [{ scale: glowScale }], opacity: glowOpacity },
+                  ]}
+                />
+                <TouchableOpacity style={styles.captureButton} onPress={handleCapture}>
+                  <View style={styles.captureInner} />
+                </TouchableOpacity>
+              </View>
             </>
           )}
         </View>
@@ -207,6 +270,17 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingBottom: Platform.OS === 'ios' ? 48 : 32,
+  },
+  captureWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glowRing: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(26, 127, 75, 0.55)',
   },
   captureButton: {
     width: 72,
@@ -250,6 +324,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     paddingBottom: 48,
+  },
+  radarWrapper: {
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radarRing: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: '#1a7f4b',
+    borderTopColor: 'transparent',
+  },
+  radarSpinner: {
+    position: 'absolute',
   },
   analyzingText: {
     color: '#ffffff',

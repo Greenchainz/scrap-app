@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { type CachedScan } from './utils/cache.js';
 import HistoryScreen from './screens/HistoryScreen.js';
+import SnowOverlay from './components/SnowOverlay.js';
 
 type Screen = 'camera' | 'results' | 'history';
 
@@ -56,6 +57,7 @@ export default function App() {
             </TouchableOpacity>
           </View>
           <View style={styles.content}>{renderScreen()}</View>
+          <SnowOverlay />
         </SafeAreaView>
       </QueryClientProvider>
     </trpc.Provider>
