@@ -92,11 +92,62 @@ export function normalizeMetalType(metalType: string): string | null {
   return null;
 }
 
+// Per-state payout multipliers relative to the national 1.0 baseline (2026).
+// Drivers: proximity to mills/ports, local supply glut, state regulation overhead,
+// and transport costs. AK/HI are high because remote freight inflates yard prices.
+// Rust-Belt states (MI, IN, OH, PA, WV) are discounted due to chronic supply surplus.
 export const REGIONAL_MULTIPLIERS: Record<string, number> = {
-  CA: 1.15,
-  TX: 1.05,
+  AK: 1.15, // Remote freight cost drives up yard payouts
+  AL: 0.88,
+  AR: 0.86,
+  AZ: 1.02,
+  CA: 1.15, // High demand, major Pacific ports
+  CO: 1.02,
+  CT: 1.08,
+  DC: 1.08,
+  DE: 1.05,
+  FL: 1.03,
+  GA: 1.02,
+  HI: 1.18, // Island logistics premium
+  IA: 0.90,
+  ID: 0.89,
+  IL: 1.05,
+  IN: 0.87, // Industrial Midwest surplus
+  KS: 0.90,
+  KY: 0.88,
+  LA: 0.95,
+  MA: 1.10,
+  MD: 1.05,
+  ME: 1.02,
+  MI: 0.88, // Rust Belt surplus
+  MN: 0.92,
+  MO: 0.92,
+  MS: 0.85,
+  MT: 0.87,
+  NC: 0.92,
+  ND: 0.88,
+  NE: 0.88,
+  NH: 1.05,
+  NJ: 1.10,
+  NM: 0.90,
+  NV: 1.02,
+  NY: 1.10,
+  OH: 0.90, // Rust Belt surplus
+  OK: 0.90,
+  OR: 1.08,
+  PA: 0.92, // Rust Belt surplus
+  RI: 1.07,
+  SC: 0.92,
+  SD: 0.88,
+  TN: 0.90,
+  TX: 1.05, // Major industrial hub, Gulf ports
+  UT: 0.92,
   VA: 0.95,
-  OH: 0.90,
+  VT: 1.00,
+  WA: 1.12, // Pacific Northwest ports
+  WI: 0.90,
+  WV: 0.85, // Rural, low scrap demand
+  WY: 0.87,
 };
 
 const DEFAULT_MULTIPLIER = 1.0;

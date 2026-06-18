@@ -1,4 +1,5 @@
 import { router, publicProcedure, TRPCError, z } from '../trpc';
+import { desc } from 'drizzle-orm';
 import { analyzeScrapImage } from '../openai';
 import { getRegionalMultiplier, calculateTotalValue } from '../pricing';
 import { decodeSerialNumber, describeEra } from '../era';
@@ -76,7 +77,7 @@ export const scrapRouter = router({
       const rows = await db
         .select()
         .from(schema.scans)
-        .orderBy(schema.scans.createdAt)
+        .orderBy(desc(schema.scans.createdAt))
         .limit(input.limit);
       return rows;
     }),
