@@ -29,6 +29,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck --workspace=server
 
+      - name: Test
+        run: npm run test --workspace=server
+
       - name: Build
         run: npm run build --workspace=server
 

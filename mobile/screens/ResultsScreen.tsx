@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Animated,
 } from 'react-native';
 import type { ScanResult } from './CameraScreen.js';
 
@@ -24,19 +25,61 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
   const totalHigh = result.estimatedValueHigh.toFixed(2);
   const difficultyColor = DIFFICULTY_COLORS[result.difficulty] ?? '#555';
 
+  // Value card slide-up entrance
+  const cardSlide = useRef(new Animated.Value(60)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  // Value amount glow pulse
+  const valueGlow = useRef(new Animated.Value(0)).current;
+  // Staggered metal rows
+  const metalAnims = useRef(result.metals.map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    // Card entrance
+    Animated.parallel([
+      Animated.timing(cardSlide, { toValue: 0, duration: 420, useNativeDriver: true }),
+      Animated.timing(cardOpacity, { toValue: 1, duration: 420, useNativeDriver: true }),
+    ]).start();
+
+    // Staggered metal rows (start after card)
+    Animated.stagger(
+      80,
+      metalAnims.map((anim: Animated.Value) =>
+        Animated.timing(anim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ),
+    ).start();
+
+    // Value glow pulse (loops)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(valueGlow, { toValue: 1, duration: 1200, useNativeDriver: false }),
+        Animated.timing(valueGlow, { toValue: 0, duration: 1200, useNativeDriver: false }),
+      ]),
+    ).start();
+  }, [cardSlide, cardOpacity, valueGlow, metalAnims]);
+
+  const glowColor = valueGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#1a7f4b', '#5dffa8'],
+  });
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.objectName}>{result.objectName}</Text>
 
-      <View style={styles.valueCard}>
+      <Animated.View
+        style={[
+          styles.valueCard,
+          { opacity: cardOpacity, transform: [{ translateY: cardSlide }] },
+        ]}
+      >
         <Text style={styles.valueLabel}>Estimated Scrap Value</Text>
-        <Text style={styles.valueAmount}>
+        <Animated.Text style={[styles.valueAmount, { color: glowColor }]}>
           ${totalLow} – ${totalHigh}
-        </Text>
+        </Animated.Text>
         <View style={[styles.difficultyBadge, { backgroundColor: difficultyColor }]}>
           <Text style={styles.difficultyText}>{result.difficulty.toUpperCase()} to disassemble</Text>
         </View>
-      </View>
+      </Animated.View>
 
       {result.era && (
         <View style={styles.eraCard}>
@@ -77,7 +120,23 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
 
       <Text style={styles.sectionTitle}>Metal Breakdown</Text>
       {result.metals.map((metal, i) => (
-        <View key={i} style={styles.metalRow}>
+        <Animated.View
+          key={i}
+          style={[
+            styles.metalRow,
+            {
+              opacity: metalAnims[i],
+              transform: [
+                {
+                  translateX: metalAnims[i]!.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [40, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
           <View style={styles.metalInfo}>
             <Text style={styles.metalType}>{metal.type}</Text>
             <Text style={styles.metalWeight}>{metal.weightRange}</Text>
@@ -88,7 +147,7 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
             </Text>
             <Text style={styles.metalPercent}>{metal.percentage}%</Text>
           </View>
-        </View>
+        </Animated.View>
       ))}
 
       {result.safetyWarnings.length > 0 && (
