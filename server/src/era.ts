@@ -240,6 +240,7 @@ const BATTERY_SERIAL_MANUFACTURERS: Record<string, string> = {
   EVE: 'EVE',
 };
 
+// Allow limited future dating for pre-stamped pack labels and model-year overlap.
 const FUTURE_YEAR_BUFFER = 5;
 
 function inferChemistry(identifier: string, manufacturer: string | null): 'NMC' | 'LFP' | 'NCA' | 'LMO' | 'unknown' {
@@ -248,7 +249,6 @@ function inferChemistry(identifier: string, manufacturer: string | null): 'NMC' 
   if (/\bNCA\b/.test(text)) return 'NCA';
   if (/\bNMC\b/.test(text)) return 'NMC';
   if (/\bLMO\b/.test(text)) return 'LMO';
-  if (text.includes('BYD') || text.includes('CATL')) return 'LFP';
   return 'unknown';
 }
 
