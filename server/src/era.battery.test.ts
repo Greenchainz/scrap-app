@@ -111,7 +111,8 @@ test('decodeBatteryPackId decodes a 17-char VIN year code L at pos 9 (2020 = NMC
 test('decodeBatteryPackId falls back to embedded 4-digit year', () => {
   // Not a 17-char VIN but contains 2022
   const packId = 'TESLA-PACK-2022-ABCD';
-  const result = decodeBatteryPackId(packId);
+  // Pass currentYear=2026 to make the test fully deterministic
+  const result = decodeBatteryPackId(packId, 2026);
   assert.equal(result.year, 2022);
   assert.equal(result.chemistryEra, 'lfp_era');
   assert.equal(result.confidence, 'medium');

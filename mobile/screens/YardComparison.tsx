@@ -59,12 +59,10 @@ export default function YardComparison({ metals, latitude, longitude, state }: P
   };
 
   // ---------------------------------------------------------------------------
-  // Compute delta vs. nearest yard (first in the sorted list that has a distance)
+  // Compute delta vs. best payout
   // ---------------------------------------------------------------------------
   const nearbyYards = compareQuery.data ?? [];
   const bestPayout = nearbyYards[0]?.totalHigh ?? 0;
-  const nearestYard = nearbyYards.find((y) => y.distanceMiles != null) ?? nearbyYards[0];
-  const nearestPayout = nearestYard?.totalHigh ?? 0;
 
   return (
     <View>
@@ -97,8 +95,6 @@ export default function YardComparison({ metals, latitude, longitude, state }: P
                 rank={index + 1}
                 isBest={isBest}
                 delta={delta}
-                nearestYard={nearestYard ?? null}
-                nearestPayout={nearestPayout}
               />
             );
           })}
@@ -182,8 +178,6 @@ export default function YardComparison({ metals, latitude, longitude, state }: P
                       (cityQuery.data!.cityBestPayout.totalHigh - row.totalHigh).toFixed(2),
                     )
               }
-              nearestYard={null}
-              nearestPayout={0}
             />
           ))}
         </View>
@@ -200,9 +194,8 @@ type YardCardProps = {
   row: YardRow;
   rank: number;
   isBest: boolean;
+  /** Payout delta vs the best yard in the list (null for the top-ranked card). */
   delta: number | null;
-  nearestYard: YardRow | null;
-  nearestPayout: number;
 };
 
 function YardCard({ row, rank, isBest, delta }: YardCardProps) {

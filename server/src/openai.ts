@@ -135,6 +135,8 @@ export async function analyzeScrapImage(
           strict: true,
         },
       },
+      // Increased from 1024: battery + compliance fields add ~35% response size
+      // (chemistry, SoH, cycleCount, batteryPassportPresent + EV extraction steps).
       max_tokens: 1400,
     },
     { timeout: 30000 },

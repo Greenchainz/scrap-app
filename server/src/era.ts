@@ -425,8 +425,12 @@ export type DecodedBatteryPack = {
  * Attempts to extract a model year from a 17-character VIN (position 10 = model year).
  * Also handles common EV battery pack ID formats (e.g. Tesla pack IDs that embed year digits).
  * Returns a `DecodedBatteryPack` — pure logic, no I/O.
+ *
+ * @param packId      VIN or battery pack identifier string.
+ * @param currentYear Override for the "current year" ceiling (defaults to system year).
+ *                    Pass a fixed value in tests to make behavior deterministic.
  */
-export function decodeBatteryPackId(packId: string): DecodedBatteryPack {
+export function decodeBatteryPackId(packId: string, currentYear = new Date().getFullYear()): DecodedBatteryPack {
   const s = packId.trim().toUpperCase();
 
   // Standard 17-char VIN: position index 9 (10th char) = model year code.
@@ -448,7 +452,6 @@ export function decodeBatteryPackId(packId: string): DecodedBatteryPack {
   const yearMatch = s.match(/20(\d{2})/);
   if (yearMatch) {
     const year = parseInt(`20${yearMatch[1]}`, 10);
-    const currentYear = new Date().getFullYear();
     if (year >= 2000 && year <= currentYear + 1) {
       return {
         year,
