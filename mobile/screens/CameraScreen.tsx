@@ -60,6 +60,17 @@ export type ScanResult = {
   estimatedValueHigh: number;
   imageUrl: string;
   era?: EraInfo | null;
+  /** Battery compliance data returned by the AI (null when no battery detected). */
+  battery?: {
+    chemistry: string | null;
+    stateOfHealth: string | null;
+    cycleCount: number | null;
+    batteryPassportPresent: boolean | null;
+  } | null;
+  /** Device location at capture time — used for yard-comparison feature. */
+  latitude?: number;
+  longitude?: number;
+  state?: string;
 };
 
 export default function CameraScreen({ onScanComplete }: Props) {
@@ -185,7 +196,7 @@ export default function CameraScreen({ onScanComplete }: Props) {
         serialNumber: serialNumber.trim() || undefined,
       });
 
-      const scanResult: ScanResult = { ...result, imageUrl: blobUrl };
+      const scanResult: ScanResult = { ...result, imageUrl: blobUrl, latitude, longitude, state };
 
       await cacheScan({ ...scanResult, cachedAt: new Date().toISOString() });
       onScanComplete(scanResult);
