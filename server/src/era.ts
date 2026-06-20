@@ -246,15 +246,21 @@ function inferChemistry(identifier: string, manufacturer: string | null): 'NMC' 
   if (text.includes('NCA')) return 'NCA';
   if (text.includes('NMC')) return 'NMC';
   if (text.includes('LMO')) return 'LMO';
-  if ((manufacturer ?? '').toLowerCase().includes('tesla')) return 'NCA';
   if (text.includes('BYD') || text.includes('CATL')) return 'LFP';
   return 'unknown';
 }
 
+const BATTERY_ERA_THRESHOLD = {
+  earlyEvEndYear: 2014,
+  scaleUpEndYear: 2020,
+} as const;
+
+// Timeline buckets aligned to typical EV pack commercialization waves and the
+// 2027 Digital Battery Passport enforcement window.
 function getBatteryEra(year: number | null): string | null {
   if (year == null) return null;
-  if (year <= 2014) return 'early_ev';
-  if (year <= 2020) return 'scale_up';
+  if (year <= BATTERY_ERA_THRESHOLD.earlyEvEndYear) return 'early_ev';
+  if (year <= BATTERY_ERA_THRESHOLD.scaleUpEndYear) return 'scale_up';
   return 'passport_transition';
 }
 

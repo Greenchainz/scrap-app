@@ -115,6 +115,7 @@ export const METAL_ALIASES: Record<string, string> = {
 // Resolves any free-text metal label to a canonical grade key, or null if unknown.
 export function normalizeMetalType(metalType: string): string | null {
   const key = metalType.trim().toLowerCase();
+  const has = (pattern: RegExp): boolean => pattern.test(key);
   if (METAL_PRICES[key]) return key;
   if (METAL_ALIASES[key]) return METAL_ALIASES[key]!;
   if (key.includes('bare bright')) return 'copper_bare_bright';
@@ -122,13 +123,13 @@ export function normalizeMetalType(metalType: string): string | null {
   if (key.includes('acr') || key.includes('radiator')) return 'acr';
   if (key.includes('brass')) return 'yellow_brass';
   if (key.includes('bronze')) return 'bronze';
-  if (key.includes('lfp')) return 'lfp_pack';
-  if (key.includes('nmc')) return 'nmc_pack';
-  if (key.includes('nca')) return 'nca_pack';
+  if (has(/\blfp\b/)) return 'lfp_pack';
+  if (has(/\bnmc\b/)) return 'nmc_pack';
+  if (has(/\bnca\b/)) return 'nca_pack';
   if (
-    key.includes('li-ion') ||
-    key.includes('lithium ion') ||
-    (key.includes('battery pack') && !key.includes('lfp') && !key.includes('nmc') && !key.includes('nca'))
+    has(/\bli(?:-|\s)?ion\b/) ||
+    has(/\blithium(?:-|\s)+ion\b/) ||
+    (key.includes('battery pack') && !has(/\blfp\b/) && !has(/\bnmc\b/) && !has(/\bnca\b/))
   ) {
     return 'li_ion_pack';
   }

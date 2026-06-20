@@ -128,7 +128,7 @@ test('decodeSerialNumber decodes EV VIN model year and chemistry hints', () => {
   assert.equal(decoded.identifierType, 'vin');
   assert.equal(decoded.manufacturer, 'Tesla');
   assert.equal(decoded.year, 2023);
-  assert.equal(decoded.chemistry, 'NCA');
+  assert.equal(decoded.chemistry, 'unknown');
   assert.equal(decoded.batteryEra, 'passport_transition');
 });
 

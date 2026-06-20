@@ -24,6 +24,8 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
   const totalLow = result.estimatedValueLow.toFixed(2);
   const totalHigh = result.estimatedValueHigh.toFixed(2);
   const difficultyColor = DIFFICULTY_COLORS[result.difficulty] ?? '#555';
+  const detectedManufacturer = result.batteryPassport.manufacturer ?? result.era?.decoded.manufacturer ?? 'Unknown';
+  const detectedChemistry = result.batteryPassport.chemistry ?? result.era?.decoded.chemistry ?? 'Unknown';
 
   // Value card slide-up entrance
   const cardSlide = useRef(new Animated.Value(60)).current;
@@ -178,11 +180,11 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
         </View>
         <View style={styles.eraSpecRow}>
           <Text style={styles.eraSpecLabel}>Manufacturer</Text>
-          <Text style={styles.eraSpecValue}>{result.batteryPassport.manufacturer ?? result.era?.decoded.manufacturer ?? 'Unknown'}</Text>
+          <Text style={styles.eraSpecValue}>{detectedManufacturer}</Text>
         </View>
         <View style={styles.eraSpecRow}>
           <Text style={styles.eraSpecLabel}>Chemistry</Text>
-          <Text style={styles.eraSpecValue}>{result.batteryPassport.chemistry ?? result.era?.decoded.chemistry ?? 'Unknown'}</Text>
+          <Text style={styles.eraSpecValue}>{detectedChemistry}</Text>
         </View>
         {result.batteryPassport.captureRecommendations.map((r, i) => (
           <Text key={i} style={styles.eraInsight}>• {r}</Text>
