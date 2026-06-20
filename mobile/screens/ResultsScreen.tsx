@@ -24,8 +24,8 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
   const totalLow = result.estimatedValueLow.toFixed(2);
   const totalHigh = result.estimatedValueHigh.toFixed(2);
   const difficultyColor = DIFFICULTY_COLORS[result.difficulty] ?? '#555';
-  const detectedManufacturer = result.batteryPassport.manufacturer ?? result.era?.decoded.manufacturer ?? 'Unknown';
-  const detectedChemistry = result.batteryPassport.chemistry ?? result.era?.decoded.chemistry ?? 'Unknown';
+  const detectedManufacturer = result.batteryPassport.manufacturer ?? 'Unknown';
+  const detectedChemistry = result.batteryPassport.chemistry ?? 'Unknown';
 
   // Value card slide-up entrance
   const cardSlide = useRef(new Animated.Value(60)).current;

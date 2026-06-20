@@ -240,12 +240,14 @@ const BATTERY_SERIAL_MANUFACTURERS: Record<string, string> = {
   EVE: 'EVE',
 };
 
+const FUTURE_YEAR_BUFFER = 5;
+
 function inferChemistry(identifier: string, manufacturer: string | null): 'NMC' | 'LFP' | 'NCA' | 'LMO' | 'unknown' {
   const text = `${identifier} ${manufacturer ?? ''}`.toUpperCase();
-  if (text.includes('LFP')) return 'LFP';
-  if (text.includes('NCA')) return 'NCA';
-  if (text.includes('NMC')) return 'NMC';
-  if (text.includes('LMO')) return 'LMO';
+  if (/\bLFP\b/.test(text)) return 'LFP';
+  if (/\bNCA\b/.test(text)) return 'NCA';
+  if (/\bNMC\b/.test(text)) return 'NMC';
+  if (/\bLMO\b/.test(text)) return 'LMO';
   if (text.includes('BYD') || text.includes('CATL')) return 'LFP';
   return 'unknown';
 }
@@ -286,7 +288,7 @@ function decodeVin(vin: string): DecodedDate {
 
 function decodeBatterySerial(serial: string): DecodedDate {
   const s = serial.trim().toUpperCase();
-  const maxYear = new Date().getFullYear() + 5;
+  const maxYear = new Date().getFullYear() + FUTURE_YEAR_BUFFER;
   const yearMatches = Array.from(s.matchAll(/(20\d{2})/g), (m) => parseInt(m[1]!, 10)).filter(
     (y) => y >= 2000 && y <= maxYear,
   );

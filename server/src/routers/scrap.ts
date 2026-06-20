@@ -14,17 +14,16 @@ const AnalyzeInputSchema = z.object({
   serialNumber: z.string().optional(),
 });
 
-const LIVE_BATTERY_PRICING_ROADMAP = [
-  'Ingest daily lithium/cobalt/nickel benchmark feeds and refresh grade baselines.',
-  'Blend benchmark feeds with regional yard multipliers for live EV payout ranges.',
-  'Publish timestamped price snapshots to battery-grade SKUs for auditability.',
-  'Add confidence scoring and staleness alerts when commodity feeds are delayed.',
-];
-
 export const scrapRouter = router({
   analyzeImage: publicProcedure
     .input(AnalyzeInputSchema)
     .mutation(async ({ input }) => {
+      const liveBatteryPricingRoadmap = [
+        'Ingest daily lithium/cobalt/nickel benchmark feeds and refresh grade baselines.',
+        'Blend benchmark feeds with regional yard multipliers for live EV payout ranges.',
+        'Publish timestamped price snapshots to battery-grade SKUs for auditability.',
+        'Add confidence scoring and staleness alerts when commodity feeds are delayed.',
+      ];
       const multiplier = getRegionalMultiplier(input.state);
 
       let analysis: Awaited<ReturnType<typeof analyzeScrapImage>>;
@@ -78,7 +77,7 @@ export const scrapRouter = router({
               batteryPassport,
               era,
               batteryPassportHooks,
-              liveBatteryPricingRoadmap: LIVE_BATTERY_PRICING_ROADMAP,
+              liveBatteryPricingRoadmap,
             } as unknown as Record<string, unknown>,
             estimatedValueLow: totalLow,
             estimatedValueHigh: totalHigh,
@@ -100,7 +99,7 @@ export const scrapRouter = router({
         safetyWarnings: analysis.safetyWarnings,
         batteryPassport,
         batteryPassportHooks,
-        liveBatteryPricingRoadmap: LIVE_BATTERY_PRICING_ROADMAP,
+        liveBatteryPricingRoadmap,
         estimatedValueLow: totalLow,
         estimatedValueHigh: totalHigh,
         era,
