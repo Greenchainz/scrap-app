@@ -271,3 +271,214 @@ export function describeEra(decoded: DecodedDate): EraProfile | null {
   if (decoded.year == null) return null;
   return getEraProfile(decoded.year);
 }
+
+// ===========================================================================
+// Battery-chemistry era classifier (Part B — EV / battery recognition)
+//
+// ADDITIVE: nothing above this line is modified. The appliance epoch logic
+// remains fully intact. This section adds a parallel classification axis for
+// EV battery packs, modules, and cells.
+// ===========================================================================
+
+/**
+ * Battery chemistry eras keyed to approximate production-year ranges.
+ *
+ * - lead_acid    : pre-2000  (SLI auto, forklift, stationary UPS)
+ * - early_liion  : 2000–2012 (first-gen consumer EVs, NiMH hybrids crossing to Li)
+ * - nmc_era      : 2013–2020 (NMC dominance: Tesla S/X, BMW i3, Bolt, Leaf gen 2)
+ * - lfp_era      : 2021–2026 (LFP surge: Tesla 3/Y std-range, BYD, CATL, Rivian opt)
+ * - passport_2027: 2027+     (EU Battery Regulation 2023/1542 Digital Battery Passport
+ *                             mandatory for traction batteries ≥ 2 kWh;
+ *                             state-of-health, cycle count, carbon footprint required)
+ */
+export type BatteryChemistryEra =
+  | 'lead_acid'
+  | 'early_liion'
+  | 'nmc_era'
+  | 'lfp_era'
+  | 'passport_2027';
+
+export type BatteryProfile = {
+  era: BatteryChemistryEra;
+  label: string;
+  yearsLabel: string;
+  /** Most common cell chemistry in this era (e.g. "NMC 811", "LFP"). */
+  dominantChemistry: string;
+  /** Metals typically recoverable from this battery type (canonical grade keys). */
+  recoverableMetals: string[];
+  /** Notes on value density relative to other battery eras. */
+  valueDensityNote: string;
+  /** Compliance and regulatory notes relevant to recyclers. */
+  complianceNote: string;
+};
+
+const BATTERY_PROFILES: Record<BatteryChemistryEra, BatteryProfile> = {
+  lead_acid: {
+    era: 'lead_acid',
+    label: 'Lead-Acid Era',
+    yearsLabel: 'Pre-2000',
+    dominantChemistry: 'Lead-acid (flooded / AGM / gel)',
+    recoverableMetals: ['light_iron', 'stainless'],
+    valueDensityNote:
+      'Lead plates have modest scrap value; core charge programs often exceed spot price. ' +
+      'Avoid cracked cases — acid spill hazard.',
+    complianceNote:
+      'Lead-acid batteries are regulated hazardous waste. Most states mandate recycler take-back. ' +
+      'No Digital Battery Passport requirement.',
+  },
+  early_liion: {
+    era: 'early_liion',
+    label: 'Early Li-ion / NiMH Era',
+    yearsLabel: '2000–2012',
+    dominantChemistry: 'NMC / NCA / NiMH (transitional)',
+    recoverableMetals: ['li_ion_module', 'aluminum_clean', 'copper_2', 'nickel_briquette'],
+    valueDensityNote:
+      'Lower energy density than later packs; cobalt content is present but lower than peak NMC. ' +
+      'NiMH packs (Prius Gen 1–2) yield recoverable nickel.',
+    complianceNote:
+      'No EU Battery Passport requirement (predates 2027 mandate). ' +
+      'Safe-discharge and insulation protocols still required before teardown.',
+  },
+  nmc_era: {
+    era: 'nmc_era',
+    label: 'NMC Dominance Era',
+    yearsLabel: '2013–2020',
+    dominantChemistry: 'NMC 111 / NMC 532 / NMC 622',
+    recoverableMetals: ['nmc_black_mass', 'ev_copper_busbar', 'aluminum_clean', 'cobalt_sulfate', 'nickel_briquette'],
+    valueDensityNote:
+      'Highest cobalt content of any era — cobalt_sulfate recovery is the headline value driver. ' +
+      'NMC black mass commands premium over LFP. Copper busbars are substantial (2–4 lbs per module).',
+    complianceNote:
+      'No EU Battery Passport requirement (predates 2027 mandate). ' +
+      'High-voltage packs (200–800 V nominal) — full HV isolation before ANY disassembly. ' +
+      'Thermal runaway risk if cells are punctured or short-circuited.',
+  },
+  lfp_era: {
+    era: 'lfp_era',
+    label: 'LFP Surge Era',
+    yearsLabel: '2021–2026',
+    dominantChemistry: 'LFP (LiFePO4) / NMC 811',
+    recoverableMetals: ['lfp_black_mass', 'ev_copper_busbar', 'aluminum_clean', 'li_ion_module'],
+    valueDensityNote:
+      'LFP black mass has lower per-lb value than NMC (no Co/Ni), but high volume. ' +
+      'Many packs are cell-to-pack (CTP) — no module-level separation without specialist tooling. ' +
+      'NMC 811 packs in this era still carry significant Ni value.',
+    complianceNote:
+      'EU Battery Regulation 2023/1542 enacted; traction battery Digital Passport requirements ' +
+      'take effect Feb 2027 for batteries ≥ 2 kWh. Voluntary adoption starting now. ' +
+      'Collect state-of-health (SoH) and cycle count data when QR/NFC passport label is present.',
+  },
+  passport_2027: {
+    era: 'passport_2027',
+    label: 'Digital Battery Passport Era',
+    yearsLabel: '2027+',
+    dominantChemistry: 'NMC 9.5 / LNMO / Solid-state (emerging)',
+    recoverableMetals: ['nmc_black_mass', 'lfp_black_mass', 'ev_copper_busbar', 'cobalt_sulfate', 'nickel_briquette'],
+    valueDensityNote:
+      'Passport-era packs carry a machine-readable QR/NFC Digital Battery Passport. ' +
+      'SoH, cycle count, and carbon-footprint data should be logged at end-of-life. ' +
+      'Second-life reuse eligibility (SoH > 80%) may exceed scrap value — check before shredding.',
+    complianceNote:
+      'EU Battery Regulation 2023/1542 Art. 77: Digital Battery Passport is MANDATORY for ' +
+      'traction batteries ≥ 2 kWh placed on EU market from Feb 18 2027. ' +
+      'Required fields: SoH, remaining capacity, cycle count, chemistry, hazardous substances, ' +
+      'carbon footprint, and supply-chain due-diligence data. ' +
+      'Recyclers must transmit end-of-life data to the passport system.',
+  },
+};
+
+/**
+ * Classifies a battery pack by the year it was manufactured into a
+ * `BatteryChemistryEra`. Pure logic — no I/O.
+ */
+export function classifyBatteryEraFromYear(year: number): BatteryChemistryEra {
+  if (year < 2000) return 'lead_acid';
+  if (year < 2013) return 'early_liion';
+  if (year < 2021) return 'nmc_era';
+  if (year < 2027) return 'lfp_era';
+  return 'passport_2027';
+}
+
+/**
+ * Returns the full battery profile for a given manufacture year.
+ */
+export function getBatteryProfile(year: number): BatteryProfile {
+  return BATTERY_PROFILES[classifyBatteryEraFromYear(year)];
+}
+
+// ---------------------------------------------------------------------------
+// Light VIN / battery-pack ID parser
+// ---------------------------------------------------------------------------
+
+export type DecodedBatteryPack = {
+  /** Decoded model year (null if not resolvable). */
+  year: number | null;
+  /** Battery chemistry era (null if year unknown). */
+  chemistryEra: BatteryChemistryEra | null;
+  /** Battery profile (null if year unknown). */
+  profile: BatteryProfile | null;
+  confidence: 'high' | 'medium' | 'low';
+  note?: string;
+};
+
+/**
+ * Attempts to extract a model year from a 17-character VIN (position 10 = model year).
+ * Also handles common EV battery pack ID formats (e.g. Tesla pack IDs that embed year digits).
+ * Returns a `DecodedBatteryPack` — pure logic, no I/O.
+ */
+export function decodeBatteryPackId(packId: string): DecodedBatteryPack {
+  const s = packId.trim().toUpperCase();
+
+  // Standard 17-char VIN: position index 9 (10th char) = model year code.
+  if (s.length === 17) {
+    const vinYearChar = s[9] ?? '';
+    const year = VIN_YEAR_CODES[vinYearChar] ?? null;
+    if (year != null) {
+      return {
+        year,
+        chemistryEra: classifyBatteryEraFromYear(year),
+        profile: getBatteryProfile(year),
+        confidence: 'high',
+        note: `VIN model-year code '${vinYearChar}' → ${year}.`,
+      };
+    }
+  }
+
+  // Fallback: look for a 4-digit year embedded in the ID (e.g. Tesla pack IDs).
+  const yearMatch = s.match(/20(\d{2})/);
+  if (yearMatch) {
+    const year = parseInt(`20${yearMatch[1]}`, 10);
+    const currentYear = new Date().getFullYear();
+    if (year >= 2000 && year <= currentYear + 1) {
+      return {
+        year,
+        chemistryEra: classifyBatteryEraFromYear(year),
+        profile: getBatteryProfile(year),
+        confidence: 'medium',
+        note: `Year ${year} inferred from embedded digits in pack ID.`,
+      };
+    }
+  }
+
+  return {
+    year: null,
+    chemistryEra: null,
+    profile: null,
+    confidence: 'low',
+    note: 'Could not resolve a model year from this pack ID or VIN.',
+  };
+}
+
+// SAE J1297 VIN model-year codes (position 10, i.e. index 9 in 0-based).
+// The sequence uses letters (excl. I, O, Q, U, Z) and digits 1–9, repeating
+// on a 30-year cycle. For EV batteries (post-2010), letters A–X map to 2010+.
+// This table covers the 2000–2030 range relevant to EV teardown.
+const VIN_YEAR_CODES: Record<string, number> = {
+  Y: 2000,
+  '1': 2001, '2': 2002, '3': 2003, '4': 2004, '5': 2005,
+  '6': 2006, '7': 2007, '8': 2008, '9': 2009,
+  A: 2010, B: 2011, C: 2012, D: 2013, E: 2014, F: 2015,
+  G: 2016, H: 2017, J: 2018, K: 2019, L: 2020, M: 2021,
+  N: 2022, P: 2023, R: 2024, S: 2025, T: 2026, V: 2027,
+  W: 2028, X: 2029,
+};
