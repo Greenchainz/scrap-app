@@ -161,6 +161,42 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
         </>
       )}
 
+      <Text style={styles.sectionTitle}>🔋 Battery Passport</Text>
+      <View style={styles.eraCard}>
+        <Text style={styles.eraLabel}>{result.batteryPassport.complianceStatus.toUpperCase()}</Text>
+        <View style={styles.eraSpecRow}>
+          <Text style={styles.eraSpecLabel}>State of health</Text>
+          <Text style={styles.eraSpecValue}>
+            {result.batteryPassport.stateOfHealthPct != null ? `${result.batteryPassport.stateOfHealthPct}%` : 'Not detected'}
+          </Text>
+        </View>
+        <View style={styles.eraSpecRow}>
+          <Text style={styles.eraSpecLabel}>Cycle count</Text>
+          <Text style={styles.eraSpecValue}>
+            {result.batteryPassport.cycleCount != null ? result.batteryPassport.cycleCount : 'Not detected'}
+          </Text>
+        </View>
+        <View style={styles.eraSpecRow}>
+          <Text style={styles.eraSpecLabel}>Manufacturer</Text>
+          <Text style={styles.eraSpecValue}>{result.batteryPassport.manufacturer ?? result.era?.decoded.manufacturer ?? 'Unknown'}</Text>
+        </View>
+        <View style={styles.eraSpecRow}>
+          <Text style={styles.eraSpecLabel}>Chemistry</Text>
+          <Text style={styles.eraSpecValue}>{result.batteryPassport.chemistry ?? result.era?.decoded.chemistry ?? 'Unknown'}</Text>
+        </View>
+        {result.batteryPassport.captureRecommendations.map((r, i) => (
+          <Text key={i} style={styles.eraInsight}>• {r}</Text>
+        ))}
+      </View>
+
+      <Text style={styles.sectionTitle}>📈 Live Battery Pricing Roadmap</Text>
+      {result.liveBatteryPricingRoadmap.map((step, i) => (
+        <View key={i} style={styles.stepRow}>
+          <Text style={styles.stepNumber}>{i + 1}</Text>
+          <Text style={styles.stepText}>{step}</Text>
+        </View>
+      ))}
+
       <Text style={styles.sectionTitle}>Extraction Steps</Text>
       {result.extractionSteps.map((step, i) => (
         <View key={i} style={styles.stepRow}>

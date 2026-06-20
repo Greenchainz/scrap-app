@@ -15,6 +15,10 @@ export type DecodedDate = {
   month: number | null;
   candidateYears: number[];
   confidence: 'high' | 'medium' | 'low';
+  identifierType?: 'appliance_serial' | 'battery_serial' | 'vin';
+  manufacturer?: string | null;
+  chemistry?: 'NMC' | 'LFP' | 'NCA' | 'LMO' | 'unknown' | null;
+  batteryEra?: string | null;
   note?: string;
 };
 
@@ -63,7 +67,7 @@ const SAMSUNG_MONTH: Record<string, number> = {
   A: 10, B: 11, C: 12,
 };
 
-export function normalizeBrand(brand: string): 'ge' | 'whirlpool' | 'frigidaire' | 'samsung' | 'unknown' {
+export function normalizeBrand(brand: string): 'ge' | 'whirlpool' | 'frigidaire' | 'samsung' | 'ev' | 'unknown' {
   const b = brand.trim().toLowerCase();
   if (b.includes('ge') || b.includes('general electric') || b.includes('hotpoint')) return 'ge';
   if (
@@ -75,7 +79,33 @@ export function normalizeBrand(brand: string): 'ge' | 'whirlpool' | 'frigidaire'
     return 'whirlpool';
   }
   if (b.includes('frigidaire') || b.includes('electrolux')) return 'frigidaire';
+  if (b.includes('samsung sdi')) return 'ev';
   if (b.includes('samsung')) return 'samsung';
+  if (
+    b.includes('tesla') ||
+    b.includes('rivian') ||
+    b.includes('lucid') ||
+    b.includes('byd') ||
+    b.includes('catl') ||
+    b.includes('panasonic') ||
+    b.includes('lg energy') ||
+    b.includes('sk on') ||
+    b.includes('ford') ||
+    b.includes('gm') ||
+    b.includes('chevrolet') ||
+    b.includes('hyundai') ||
+    b.includes('kia') ||
+    b.includes('volkswagen') ||
+    b.includes('vw') ||
+    b.includes('audi') ||
+    b.includes('bmw') ||
+    b.includes('mercedes') ||
+    b.includes('nissan') ||
+    b.includes('polestar') ||
+    b.includes('volvo')
+  ) {
+    return 'ev';
+  }
   return 'unknown';
 }
 
@@ -172,10 +202,103 @@ function decodeSamsung(serial: string): DecodedDate {
   };
 }
 
+const VIN_YEAR_CYCLE: Record<string, number[]> = {
+  A: [1980, 2010, 2040], B: [1981, 2011, 2041], C: [1982, 2012, 2042], D: [1983, 2013, 2043],
+  E: [1984, 2014, 2044], F: [1985, 2015, 2045], G: [1986, 2016, 2046], H: [1987, 2017, 2047],
+  J: [1988, 2018, 2048], K: [1989, 2019, 2049], L: [1990, 2020, 2050], M: [1991, 2021, 2051],
+  N: [1992, 2022, 2052], P: [1993, 2023, 2053], R: [1994, 2024, 2054], S: [1995, 2025, 2055],
+  T: [1996, 2026, 2056], V: [1997, 2027, 2057], W: [1998, 2028, 2058], X: [1999, 2029, 2059],
+  Y: [2000, 2030, 2060], '1': [2001, 2031], '2': [2002, 2032], '3': [2003, 2033], '4': [2004, 2034],
+  '5': [2005, 2035], '6': [2006, 2036], '7': [2007, 2037], '8': [2008, 2038], '9': [2009, 2039],
+};
+
+const VIN_WMI_MANUFACTURER: Record<string, string> = {
+  '5YJ': 'Tesla',
+  '7SA': 'Tesla',
+  'LRW': 'Tesla',
+  '1G1': 'Chevrolet',
+  '1GC': 'GM',
+  '1FM': 'Ford',
+  '3FA': 'Ford',
+  'KNA': 'Kia',
+  'KMH': 'Hyundai',
+  'WVW': 'Volkswagen',
+  'WBA': 'BMW',
+  'WAU': 'Audi',
+  'JN1': 'Nissan',
+  'YV1': 'Volvo',
+};
+
+function inferChemistry(identifier: string, manufacturer: string | null): 'NMC' | 'LFP' | 'NCA' | 'LMO' | 'unknown' {
+  const text = `${identifier} ${manufacturer ?? ''}`.toUpperCase();
+  if (text.includes('LFP')) return 'LFP';
+  if (text.includes('NCA')) return 'NCA';
+  if (text.includes('NMC')) return 'NMC';
+  if (text.includes('LMO')) return 'LMO';
+  if ((manufacturer ?? '').toLowerCase().includes('tesla')) return 'NCA';
+  if (text.includes('BYD') || text.includes('CATL')) return 'LFP';
+  return 'unknown';
+}
+
+function getBatteryEra(year: number | null): string | null {
+  if (year == null) return null;
+  if (year <= 2014) return 'early_ev';
+  if (year <= 2020) return 'scale_up';
+  return 'passport_transition';
+}
+
+function decodeVin(vin: string): DecodedDate {
+  const code = vin[9] ?? '';
+  const candidates = VIN_YEAR_CYCLE[code] ?? [];
+  const year = resolveBestYear(candidates);
+  const manufacturer = VIN_WMI_MANUFACTURER[vin.slice(0, 3)] ?? null;
+  const chemistry = inferChemistry(vin, manufacturer);
+  return {
+    brand: 'ev',
+    year,
+    month: null,
+    candidateYears: candidates,
+    confidence: year != null ? 'high' : 'low',
+    identifierType: 'vin',
+    manufacturer,
+    chemistry,
+    batteryEra: getBatteryEra(year),
+    note: year == null ? 'Could not resolve VIN model year code.' : undefined,
+  };
+}
+
+function decodeBatterySerial(serial: string): DecodedDate {
+  const s = serial.trim().toUpperCase();
+  const yearMatches = Array.from(s.matchAll(/(20\d{2})/g), (m) => parseInt(m[1]!, 10)).filter((y) => y >= 2000);
+  const year = resolveBestYear(yearMatches);
+  const monthMatch = s.match(/(?:20\d{2})[-_/]?([01]\d)/);
+  const parsedMonth = monthMatch ? parseInt(monthMatch[1]!, 10) : null;
+  const month = parsedMonth != null && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth : null;
+  const manufacturerMatch = s.match(/\b(TESLA|CATL|BYD|PANASONIC|LG|SKON|SAMSUNGSDI|EVE)\b/);
+  const manufacturer = manufacturerMatch ? manufacturerMatch[1]!.replace('SAMSUNGSDI', 'SAMSUNG SDI').replace('SKON', 'SK On') : null;
+  const chemistry = inferChemistry(s, manufacturer);
+  return {
+    brand: 'ev',
+    year,
+    month,
+    candidateYears: yearMatches,
+    confidence: year != null || chemistry !== 'unknown' ? 'medium' : 'low',
+    identifierType: 'battery_serial',
+    manufacturer,
+    chemistry,
+    batteryEra: getBatteryEra(year),
+    note: year == null && chemistry === 'unknown' ? 'Battery serial parsed with limited confidence.' : undefined,
+  };
+}
+
 export function decodeSerialNumber(brand: string, serial: string): DecodedDate {
   const normalized = normalizeBrand(brand);
   if (!serial || !serial.trim()) {
     return { brand: normalized, year: null, month: null, candidateYears: [], confidence: 'low', note: 'No serial number provided.' };
+  }
+  const cleaned = serial.trim().toUpperCase();
+  if (/^[A-HJ-NPR-Z0-9]{17}$/.test(cleaned)) {
+    return decodeVin(cleaned);
   }
   switch (normalized) {
     case 'ge':
@@ -186,6 +309,8 @@ export function decodeSerialNumber(brand: string, serial: string): DecodedDate {
       return decodeFrigidaire(serial);
     case 'samsung':
       return decodeSamsung(serial);
+    case 'ev':
+      return decodeBatterySerial(serial);
     default:
       return {
         brand: 'unknown',

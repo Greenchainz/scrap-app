@@ -14,6 +14,13 @@ const AnalyzeInputSchema = z.object({
   serialNumber: z.string().optional(),
 });
 
+const LIVE_BATTERY_PRICING_ROADMAP = [
+  'Ingest daily lithium/cobalt/nickel benchmark feeds and refresh grade baselines.',
+  'Blend benchmark feeds with regional yard multipliers for live EV payout ranges.',
+  'Publish timestamped price snapshots to battery-grade SKUs for auditability.',
+  'Add confidence scoring and staleness alerts when commodity feeds are delayed.',
+];
+
 export const scrapRouter = router({
   analyzeImage: publicProcedure
     .input(AnalyzeInputSchema)
@@ -38,6 +45,19 @@ export const scrapRouter = router({
           : null;
       const eraProfile = decoded ? describeEra(decoded) : null;
       const era = decoded ? { decoded, profile: eraProfile } : null;
+      const batteryPassportHooks = {
+        ready: analysis.batteryPassport.complianceStatus !== 'missing',
+        capturePath: '/battery-passport/capture',
+        uploadPath: '/battery-passport/upload',
+        fields: {
+          stateOfHealthPct: analysis.batteryPassport.stateOfHealthPct,
+          cycleCount: analysis.batteryPassport.cycleCount,
+          manufacturer: analysis.batteryPassport.manufacturer ?? decoded?.manufacturer ?? null,
+          chemistry: analysis.batteryPassport.chemistry ?? decoded?.chemistry ?? null,
+          passportId: analysis.batteryPassport.passportId,
+          vinOrSerial: input.serialNumber ?? null,
+        },
+      };
 
       let scanId: number | undefined;
       try {
@@ -46,7 +66,12 @@ export const scrapRouter = router({
           .values({
             imageUrl: input.imageUrl,
             objectName: analysis.objectName,
-            analysis: { ...analysis, era } as unknown as Record<string, unknown>,
+            analysis: {
+              ...analysis,
+              era,
+              batteryPassportHooks,
+              liveBatteryPricingRoadmap: LIVE_BATTERY_PRICING_ROADMAP,
+            } as unknown as Record<string, unknown>,
             estimatedValueLow: totalLow,
             estimatedValueHigh: totalHigh,
             latitude: input.latitude,
@@ -65,6 +90,9 @@ export const scrapRouter = router({
         extractionSteps: analysis.extractionSteps,
         difficulty: analysis.difficulty,
         safetyWarnings: analysis.safetyWarnings,
+        batteryPassport: analysis.batteryPassport,
+        batteryPassportHooks,
+        liveBatteryPricingRoadmap: LIVE_BATTERY_PRICING_ROADMAP,
         estimatedValueLow: totalLow,
         estimatedValueHigh: totalHigh,
         era,

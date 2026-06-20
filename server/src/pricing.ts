@@ -38,6 +38,15 @@ export const METAL_PRICES: Record<string, PriceRange> = {
   electric_motor: { low: 0.15, high: 0.55 },
   sealed_unit: { low: 0.15, high: 0.35 },
   light_iron: { low: 0.08, high: 0.11 },
+  li_ion_pack: { low: 1.2, high: 2.4 },
+  lfp_pack: { low: 0.8, high: 1.9 },
+  nmc_pack: { low: 2.1, high: 4.4 },
+  nca_pack: { low: 1.9, high: 4.1 },
+  battery_module_mixed: { low: 0.9, high: 2.2 },
+  lithium_black_mass: { low: 0.7, high: 1.7 },
+  cobalt_black_mass: { low: 4.5, high: 8.2 },
+  nickel_black_mass: { low: 2.8, high: 5.6 },
+  ev_copper_busbar: { low: 4.9, high: 5.3 },
 };
 
 // Maps free-text metal names (including AI output) to a canonical grade key above.
@@ -71,6 +80,36 @@ export const METAL_ALIASES: Record<string, string> = {
   iron: 'light_iron',
   'cast iron': 'light_iron',
   tin: 'light_iron',
+  'li-ion': 'li_ion_pack',
+  'li ion': 'li_ion_pack',
+  'li-ion battery': 'li_ion_pack',
+  'lithium ion battery': 'li_ion_pack',
+  'traction battery': 'li_ion_pack',
+  'ev battery': 'li_ion_pack',
+  'battery pack': 'li_ion_pack',
+  'ev battery pack': 'li_ion_pack',
+  'battery module': 'battery_module_mixed',
+  module: 'battery_module_mixed',
+  'battery cell': 'battery_module_mixed',
+  cell: 'battery_module_mixed',
+  'lfp battery': 'lfp_pack',
+  lfp: 'lfp_pack',
+  'nmc battery': 'nmc_pack',
+  nmc: 'nmc_pack',
+  nca: 'nca_pack',
+  'nca battery': 'nca_pack',
+  lithium: 'lithium_black_mass',
+  'lithium black mass': 'lithium_black_mass',
+  cobalt: 'cobalt_black_mass',
+  'cobalt black mass': 'cobalt_black_mass',
+  nickel: 'nickel_black_mass',
+  'nickel black mass': 'nickel_black_mass',
+  busbar: 'ev_copper_busbar',
+  'copper busbar': 'ev_copper_busbar',
+  'bus bar copper': 'ev_copper_busbar',
+  'hairpin copper': 'ev_copper_busbar',
+  'high voltage copper cable': 'copper_icw',
+  'hv copper cable': 'copper_icw',
 };
 
 // Resolves any free-text metal label to a canonical grade key, or null if unknown.
@@ -83,6 +122,15 @@ export function normalizeMetalType(metalType: string): string | null {
   if (key.includes('acr') || key.includes('radiator')) return 'acr';
   if (key.includes('brass')) return 'yellow_brass';
   if (key.includes('bronze')) return 'bronze';
+  if (key.includes('lfp')) return 'lfp_pack';
+  if (key.includes('nmc')) return 'nmc_pack';
+  if (key.includes('nca')) return 'nca_pack';
+  if (key.includes('li-ion') || key.includes('lithium ion') || key.includes('battery pack')) return 'li_ion_pack';
+  if (key.includes('module') || key.includes('battery cell')) return 'battery_module_mixed';
+  if (key.includes('lithium')) return 'lithium_black_mass';
+  if (key.includes('cobalt')) return 'cobalt_black_mass';
+  if (key.includes('nickel')) return 'nickel_black_mass';
+  if (key.includes('busbar') || key.includes('hairpin')) return 'ev_copper_busbar';
   if (key.includes('copper')) return 'copper_2';
   if (key.includes('alumin')) return 'aluminum_clean';
   if (key.includes('stainless')) return 'stainless';

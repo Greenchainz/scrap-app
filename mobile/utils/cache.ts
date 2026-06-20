@@ -17,6 +17,29 @@ export type CachedScan = {
   extractionSteps: string[];
   difficulty: 'easy' | 'moderate' | 'hard';
   safetyWarnings: string[];
+  batteryPassport: {
+    stateOfHealthPct: number | null;
+    cycleCount: number | null;
+    manufacturer: string | null;
+    chemistry: string | null;
+    passportId: string | null;
+    complianceStatus: 'compliant' | 'partial' | 'missing';
+    captureRecommendations: string[];
+  };
+  batteryPassportHooks: {
+    ready: boolean;
+    capturePath: string;
+    uploadPath: string;
+    fields: {
+      stateOfHealthPct: number | null;
+      cycleCount: number | null;
+      manufacturer: string | null;
+      chemistry: string | null;
+      passportId: string | null;
+      vinOrSerial: string | null;
+    };
+  };
+  liveBatteryPricingRoadmap: string[];
   estimatedValueLow: number;
   estimatedValueHigh: number;
   imageUrl: string;

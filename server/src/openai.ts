@@ -29,8 +29,30 @@ const GPT4oScrapSchema = {
     extractionSteps: { type: 'array', items: { type: 'string' } },
     difficulty: { type: 'string', enum: ['easy', 'moderate', 'hard'] },
     safetyWarnings: { type: 'array', items: { type: 'string' } },
+    batteryPassport: {
+      type: 'object',
+      properties: {
+        stateOfHealthPct: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+        cycleCount: { anyOf: [{ type: 'number' }, { type: 'null' }] },
+        manufacturer: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        chemistry: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        passportId: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        complianceStatus: { type: 'string', enum: ['compliant', 'partial', 'missing'] },
+        captureRecommendations: { type: 'array', items: { type: 'string' } },
+      },
+      required: [
+        'stateOfHealthPct',
+        'cycleCount',
+        'manufacturer',
+        'chemistry',
+        'passportId',
+        'complianceStatus',
+        'captureRecommendations',
+      ],
+      additionalProperties: false,
+    },
   },
-  required: ['objectName', 'metals', 'extractionSteps', 'difficulty', 'safetyWarnings'],
+  required: ['objectName', 'metals', 'extractionSteps', 'difficulty', 'safetyWarnings', 'batteryPassport'],
   additionalProperties: false,
 };
 
@@ -46,6 +68,15 @@ const RawAnalysisSchema = z.object({
   extractionSteps: z.array(z.string()),
   difficulty: z.enum(['easy', 'moderate', 'hard']),
   safetyWarnings: z.array(z.string()),
+  batteryPassport: z.object({
+    stateOfHealthPct: z.number().nullable(),
+    cycleCount: z.number().nullable(),
+    manufacturer: z.string().nullable(),
+    chemistry: z.string().nullable(),
+    passportId: z.string().nullable(),
+    complianceStatus: z.enum(['compliant', 'partial', 'missing']),
+    captureRecommendations: z.array(z.string()),
+  }),
 });
 
 export async function analyzeScrapImage(
@@ -61,7 +92,7 @@ export async function analyzeScrapImage(
         {
           role: 'system',
           content:
-            'You are an expert scrap metal recycler. Analyze objects, identify recyclable metals with WEIGHT RANGES (e.g. "2-4 lbs"), provide step-by-step extraction instructions, safety warnings. Return strict JSON only.',
+           'You are an expert scrap metal recycler focused on EV/battery teardown. Analyze objects, identify recyclable metals (including copper, lithium, cobalt, nickel and EV battery grades) with WEIGHT RANGES (e.g. "2-4 lbs"), provide EV-safe extraction instructions, and safety warnings. Detect EV battery cells/modules/packs and output battery passport signals: state-of-health %, cycle count, manufacturer, chemistry, and passport/compliance status. Return strict JSON only.',
         },
         {
           role: 'user',
