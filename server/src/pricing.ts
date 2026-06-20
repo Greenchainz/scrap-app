@@ -125,7 +125,13 @@ export function normalizeMetalType(metalType: string): string | null {
   if (key.includes('lfp')) return 'lfp_pack';
   if (key.includes('nmc')) return 'nmc_pack';
   if (key.includes('nca')) return 'nca_pack';
-  if (key.includes('li-ion') || key.includes('lithium ion') || key.includes('battery pack')) return 'li_ion_pack';
+  if (
+    key.includes('li-ion') ||
+    key.includes('lithium ion') ||
+    (key.includes('battery pack') && !key.includes('lfp') && !key.includes('nmc') && !key.includes('nca'))
+  ) {
+    return 'li_ion_pack';
+  }
   if (key.includes('module') || key.includes('battery cell')) return 'battery_module_mixed';
   if (key.includes('lithium')) return 'lithium_black_mass';
   if (key.includes('cobalt')) return 'cobalt_black_mass';

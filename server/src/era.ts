@@ -229,6 +229,17 @@ const VIN_WMI_MANUFACTURER: Record<string, string> = {
   'YV1': 'Volvo',
 };
 
+const BATTERY_SERIAL_MANUFACTURERS: Record<string, string> = {
+  TESLA: 'Tesla',
+  CATL: 'CATL',
+  BYD: 'BYD',
+  PANASONIC: 'Panasonic',
+  LG: 'LG',
+  SKON: 'SK On',
+  SAMSUNGSDI: 'SAMSUNG SDI',
+  EVE: 'EVE',
+};
+
 function inferChemistry(identifier: string, manufacturer: string | null): 'NMC' | 'LFP' | 'NCA' | 'LMO' | 'unknown' {
   const text = `${identifier} ${manufacturer ?? ''}`.toUpperCase();
   if (text.includes('LFP')) return 'LFP';
@@ -269,13 +280,16 @@ function decodeVin(vin: string): DecodedDate {
 
 function decodeBatterySerial(serial: string): DecodedDate {
   const s = serial.trim().toUpperCase();
-  const yearMatches = Array.from(s.matchAll(/(20\d{2})/g), (m) => parseInt(m[1]!, 10)).filter((y) => y >= 2000);
+  const maxYear = new Date().getFullYear() + 5;
+  const yearMatches = Array.from(s.matchAll(/(20\d{2})/g), (m) => parseInt(m[1]!, 10)).filter(
+    (y) => y >= 2000 && y <= maxYear,
+  );
   const year = resolveBestYear(yearMatches);
   const monthMatch = s.match(/(?:20\d{2})[-_/]?([01]\d)/);
   const parsedMonth = monthMatch ? parseInt(monthMatch[1]!, 10) : null;
   const month = parsedMonth != null && parsedMonth >= 1 && parsedMonth <= 12 ? parsedMonth : null;
-  const manufacturerMatch = s.match(/\b(TESLA|CATL|BYD|PANASONIC|LG|SKON|SAMSUNGSDI|EVE)\b/);
-  const manufacturer = manufacturerMatch ? manufacturerMatch[1]!.replace('SAMSUNGSDI', 'SAMSUNG SDI').replace('SKON', 'SK On') : null;
+  const manufacturerToken = Object.keys(BATTERY_SERIAL_MANUFACTURERS).find((token) => s.includes(token)) ?? null;
+  const manufacturer = manufacturerToken ? BATTERY_SERIAL_MANUFACTURERS[manufacturerToken] : null;
   const chemistry = inferChemistry(s, manufacturer);
   return {
     brand: 'ev',
