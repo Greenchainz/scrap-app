@@ -45,16 +45,23 @@ export const scrapRouter = router({
           : null;
       const eraProfile = decoded ? describeEra(decoded) : null;
       const era = decoded ? { decoded, profile: eraProfile } : null;
+      const resolvedManufacturer = analysis.batteryPassport.manufacturer ?? decoded?.manufacturer ?? null;
+      const resolvedChemistry = analysis.batteryPassport.chemistry ?? decoded?.chemistry ?? null;
+      const batteryPassport = {
+        ...analysis.batteryPassport,
+        manufacturer: resolvedManufacturer,
+        chemistry: resolvedChemistry,
+      };
       const batteryPassportHooks = {
-        ready: analysis.batteryPassport.complianceStatus !== 'missing',
+        ready: batteryPassport.complianceStatus !== 'missing',
         capturePath: '/battery-passport/capture',
         uploadPath: '/battery-passport/upload',
         fields: {
-          stateOfHealthPct: analysis.batteryPassport.stateOfHealthPct,
-          cycleCount: analysis.batteryPassport.cycleCount,
-          manufacturer: analysis.batteryPassport.manufacturer ?? decoded?.manufacturer ?? null,
-          chemistry: analysis.batteryPassport.chemistry ?? decoded?.chemistry ?? null,
-          passportId: analysis.batteryPassport.passportId,
+          stateOfHealthPct: batteryPassport.stateOfHealthPct,
+          cycleCount: batteryPassport.cycleCount,
+          manufacturer: batteryPassport.manufacturer,
+          chemistry: batteryPassport.chemistry,
+          passportId: batteryPassport.passportId,
           vinOrSerial: input.serialNumber ?? null,
         },
       };
@@ -68,6 +75,7 @@ export const scrapRouter = router({
             objectName: analysis.objectName,
             analysis: {
               ...analysis,
+              batteryPassport,
               era,
               batteryPassportHooks,
               liveBatteryPricingRoadmap: LIVE_BATTERY_PRICING_ROADMAP,
@@ -90,7 +98,7 @@ export const scrapRouter = router({
         extractionSteps: analysis.extractionSteps,
         difficulty: analysis.difficulty,
         safetyWarnings: analysis.safetyWarnings,
-        batteryPassport: analysis.batteryPassport,
+        batteryPassport,
         batteryPassportHooks,
         liveBatteryPricingRoadmap: LIVE_BATTERY_PRICING_ROADMAP,
         estimatedValueLow: totalLow,

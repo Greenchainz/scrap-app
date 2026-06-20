@@ -127,7 +127,7 @@ export function normalizeMetalType(metalType: string): string | null {
   if (has(/\bnmc\b/)) return 'nmc_pack';
   if (has(/\bnca\b/)) return 'nca_pack';
   if (
-    has(/\bli(?:-|\s)?ion\b/) ||
+    has(/\bli(?:-|\s)+ion\b/) ||
     has(/\blithium(?:-|\s)+ion\b/) ||
     (key.includes('battery pack') && !has(/\blfp\b/) && !has(/\bnmc\b/) && !has(/\bnca\b/))
   ) {
