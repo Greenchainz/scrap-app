@@ -3,6 +3,7 @@ import { desc } from 'drizzle-orm';
 import { analyzeScrapImage } from '../openai';
 import { getRegionalMultiplier, calculateTotalValue } from '../pricing';
 import { decodeSerialNumber, describeEra } from '../era';
+import { createUploadSas, toReadableImageUrl } from '../blob';
 import { db, schema } from '../db';
 
 const AnalyzeInputSchema = z.object({
@@ -22,7 +23,10 @@ export const scrapRouter = router({
 
       let analysis: Awaited<ReturnType<typeof analyzeScrapImage>>;
       try {
-        analysis = await analyzeScrapImage(input.imageUrl, multiplier);
+        // The stored container is private, so mint a short-lived read SAS URL
+        // for the (otherwise inaccessible) blob before handing it to OpenAI.
+        const readableImageUrl = await toReadableImageUrl(input.imageUrl);
+        analysis = await analyzeScrapImage(readableImageUrl, multiplier);
       } catch (err) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
@@ -93,40 +97,13 @@ export const scrapRouter = router({
   getSasToken: publicProcedure
     .input(z.object({ filename: z.string() }))
     .mutation(async ({ input }) => {
-      const { BlobServiceClient, generateBlobSASQueryParameters, BlobSASPermissions, StorageSharedKeyCredential } =
-        await import('@azure/storage-blob');
-
-      const connStr = process.env['BLOB_STORAGE_CONNECTION_STRING'];
-      if (!connStr) {
-        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Blob storage not configured' });
+      try {
+        return await createUploadSas(input.filename);
+      } catch (err) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: err instanceof Error ? err.message : 'Blob storage not configured',
+        });
       }
-
-      const blobServiceClient = BlobServiceClient.fromConnectionString(connStr);
-      const containerName = process.env['BLOB_CONTAINER_NAME'] ?? 'scrap-images';
-      const containerClient = blobServiceClient.getContainerClient(containerName);
-      await containerClient.createIfNotExists({ access: 'blob' });
-
-      const blobName = `${Date.now()}-${input.filename}`;
-      const blobClient = containerClient.getBlobClient(blobName);
-
-      const accountName = blobServiceClient.accountName;
-      const accountKey = connStr.match(/AccountKey=([^;]+)/)?.[1] ?? '';
-      const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
-
-      const expiresOn = new Date(Date.now() + 15 * 60 * 1000);
-      const sasToken = generateBlobSASQueryParameters(
-        {
-          containerName,
-          blobName,
-          permissions: BlobSASPermissions.parse('rw'),
-          expiresOn,
-        },
-        sharedKeyCredential,
-      ).toString();
-
-      return {
-        uploadUrl: `${blobClient.url}?${sasToken}`,
-        blobUrl: blobClient.url,
-      };
     }),
 });

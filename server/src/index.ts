@@ -7,7 +7,28 @@ import { createContext } from './trpc';
 
 const app = express();
 
-app.use(cors());
+// CORS allowlist. Defaults to permissive ('*') to preserve existing behavior and
+// native mobile clients (which send no Origin); set ALLOWED_ORIGINS to a
+// comma-separated list in production to restrict browser origins.
+const allowedOrigins = (process.env['ALLOWED_ORIGINS'] ?? '*')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+const corsOptions: cors.CorsOptions = allowedOrigins.includes('*')
+  ? {}
+  : {
+      origin(origin, callback) {
+        // Allow non-browser clients (mobile apps, curl) that send no Origin.
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+    };
+
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 
 app.get('/health', (_req, res) => {
