@@ -14,9 +14,6 @@
     "db:push": "drizzle-kit push"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.31.10"
-  },
-  "dependencies": {
-    "expo-dev-client": "^56.0.20"
+    "drizzle-kit": "^0.30.4"
   }
 }
