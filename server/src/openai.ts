@@ -51,8 +51,6 @@ const GPT4oScrapSchema = {
       ],
       additionalProperties: false,
     },
-  },
-  required: ['objectName', 'metals', 'extractionSteps', 'difficulty', 'safetyWarnings', 'batteryPassport'],
     // Optional battery object — null when no battery is detected.
     // With strict:true, all fields must be required but nullable.
     battery: {
@@ -84,7 +82,7 @@ const GPT4oScrapSchema = {
       ],
     },
   },
-  required: ['objectName', 'metals', 'extractionSteps', 'difficulty', 'safetyWarnings', 'battery'],
+  required: ['objectName', 'metals', 'extractionSteps', 'difficulty', 'safetyWarnings', 'batteryPassport', 'battery'],
   additionalProperties: false,
 };
 
@@ -131,8 +129,6 @@ export async function analyzeScrapImage(
       messages: [
         {
           role: 'system',
-          content:
-           'You are an expert scrap metal recycler focused on EV/battery teardown. Analyze objects, identify recyclable metals (including copper, lithium, cobalt, nickel and EV battery grades) with WEIGHT RANGES (e.g. "2-4 lbs"), provide EV-safe extraction instructions, and safety warnings. Detect EV battery cells/modules/packs and output battery passport signals: state-of-health %, cycle count, manufacturer, chemistry, and passport/compliance status. Return strict JSON only.',
           content: [
             'You are an expert scrap metal recycler and e-waste specialist.',
             'Analyze the object in the image and identify ALL recyclable metals and materials, including:',

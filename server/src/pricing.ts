@@ -47,7 +47,6 @@ export const METAL_PRICES: Record<string, PriceRange> = {
   lithium_black_mass: { low: 0.7, high: 1.7 },
   cobalt_black_mass: { low: 4.5, high: 8.2 },
   nickel_black_mass: { low: 2.8, high: 5.6 },
-  ev_copper_busbar: { low: 4.9, high: 5.3 },
 
   // --- EV / Battery grades (2026 baselines, USD per lb) -------------------
   // EV copper busbars are heavier-gauge, cleaner copper than typical ICW.
@@ -113,12 +112,8 @@ export const METAL_ALIASES: Record<string, string> = {
   'li-ion': 'li_ion_pack',
   'li ion': 'li_ion_pack',
   'li-ion battery': 'li_ion_pack',
-  'lithium ion battery': 'li_ion_pack',
   'traction battery': 'li_ion_pack',
-  'ev battery': 'li_ion_pack',
-  'battery pack': 'li_ion_pack',
   'ev battery pack': 'li_ion_pack',
-  'battery module': 'battery_module_mixed',
   module: 'battery_module_mixed',
   'battery cell': 'battery_module_mixed',
   cell: 'battery_module_mixed',
@@ -130,12 +125,8 @@ export const METAL_ALIASES: Record<string, string> = {
   'nca battery': 'nca_pack',
   lithium: 'lithium_black_mass',
   'lithium black mass': 'lithium_black_mass',
-  cobalt: 'cobalt_black_mass',
   'cobalt black mass': 'cobalt_black_mass',
-  nickel: 'nickel_black_mass',
   'nickel black mass': 'nickel_black_mass',
-  busbar: 'ev_copper_busbar',
-  'copper busbar': 'ev_copper_busbar',
   'bus bar copper': 'ev_copper_busbar',
   'hairpin copper': 'ev_copper_busbar',
   'high voltage copper cable': 'copper_icw',

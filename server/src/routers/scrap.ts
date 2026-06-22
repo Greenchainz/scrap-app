@@ -1,8 +1,9 @@
-import { router, publicProcedure, TRPCError, z } from '../trpc';
+import { router, protectedProcedure, TRPCError, z } from '../trpc';
 import { desc } from 'drizzle-orm';
 import { analyzeScrapImage } from '../openai';
 import { getRegionalMultiplier, calculateTotalValue, calculateTotalValueAtYard } from '../pricing';
 import { decodeSerialNumber, describeEra } from '../era';
+import { createUploadSas, toReadableImageUrl } from '../blob';
 import { db, schema } from '../db';
 import {
   findNearbyYards,
@@ -22,7 +23,7 @@ const AnalyzeInputSchema = z.object({
 });
 
 export const scrapRouter = router({
-  analyzeImage: publicProcedure
+  analyzeImage: protectedProcedure
     .input(AnalyzeInputSchema)
     .mutation(async ({ input }) => {
       const liveBatteryPricingRoadmap = [
@@ -35,7 +36,10 @@ export const scrapRouter = router({
 
       let analysis: Awaited<ReturnType<typeof analyzeScrapImage>>;
       try {
-        analysis = await analyzeScrapImage(input.imageUrl, multiplier);
+        // The stored container is private, so mint a short-lived read SAS URL
+        // for the (otherwise inaccessible) blob before handing it to OpenAI.
+        const readableImageUrl = await toReadableImageUrl(input.imageUrl);
+        analysis = await analyzeScrapImage(readableImageUrl, multiplier);
       } catch (err) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
@@ -113,7 +117,7 @@ export const scrapRouter = router({
       };
     }),
 
-  getScans: publicProcedure
+  getScans: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(100).default(10) }))
     .query(async ({ input }) => {
       const rows = await db
@@ -124,7 +128,7 @@ export const scrapRouter = router({
       return rows;
     }),
 
-  decodeSerial: publicProcedure
+  decodeSerial: protectedProcedure
     .input(z.object({ brand: z.string().min(1), serialNumber: z.string().min(1) }))
     .query(async ({ input }) => {
       const decoded = decodeSerialNumber(input.brand, input.serialNumber);
@@ -132,44 +136,17 @@ export const scrapRouter = router({
       return { decoded, profile };
     }),
 
-  getSasToken: publicProcedure
+  getSasToken: protectedProcedure
     .input(z.object({ filename: z.string() }))
     .mutation(async ({ input }) => {
-      const { BlobServiceClient, generateBlobSASQueryParameters, BlobSASPermissions, StorageSharedKeyCredential } =
-        await import('@azure/storage-blob');
-
-      const connStr = process.env['BLOB_STORAGE_CONNECTION_STRING'];
-      if (!connStr) {
-        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Blob storage not configured' });
+      try {
+        return await createUploadSas(input.filename);
+      } catch (err) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: err instanceof Error ? err.message : 'Blob storage not configured',
+        });
       }
-
-      const blobServiceClient = BlobServiceClient.fromConnectionString(connStr);
-      const containerName = process.env['BLOB_CONTAINER_NAME'] ?? 'scrap-images';
-      const containerClient = blobServiceClient.getContainerClient(containerName);
-      await containerClient.createIfNotExists({ access: 'blob' });
-
-      const blobName = `${Date.now()}-${input.filename}`;
-      const blobClient = containerClient.getBlobClient(blobName);
-
-      const accountName = blobServiceClient.accountName;
-      const accountKey = connStr.match(/AccountKey=([^;]+)/)?.[1] ?? '';
-      const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
-
-      const expiresOn = new Date(Date.now() + 15 * 60 * 1000);
-      const sasToken = generateBlobSASQueryParameters(
-        {
-          containerName,
-          blobName,
-          permissions: BlobSASPermissions.parse('rw'),
-          expiresOn,
-        },
-        sharedKeyCredential,
-      ).toString();
-
-      return {
-        uploadUrl: `${blobClient.url}?${sasToken}`,
-        blobUrl: blobClient.url,
-      };
     }),
 
   // ---------------------------------------------------------------------------
@@ -185,7 +162,7 @@ export const scrapRouter = router({
   // SEED / DEMO DATA: yard directory is hardcoded (yards.ts). Replace with a
   // live yard directory in a future phase.
   // ---------------------------------------------------------------------------
-  compareYards: publicProcedure
+  compareYards: protectedProcedure
     .input(
       z.object({
         metals: z.array(
@@ -247,7 +224,7 @@ export const scrapRouter = router({
   // estimateInCity: "for fun / explore" mode — shows what you'd make in any
   // chosen city (e.g. "New York City") regardless of your actual location.
   // ---------------------------------------------------------------------------
-  estimateInCity: publicProcedure
+  estimateInCity: protectedProcedure
     .input(
       z.object({
         metals: z.array(
