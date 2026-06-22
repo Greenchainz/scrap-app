@@ -1,4 +1,4 @@
-import { router, publicProcedure, TRPCError, z } from '../trpc';
+import { router, protectedProcedure, TRPCError, z } from '../trpc';
 import { desc } from 'drizzle-orm';
 import { analyzeScrapImage } from '../openai';
 import { getRegionalMultiplier, calculateTotalValue, calculateTotalValueAtYard } from '../pricing';
@@ -23,7 +23,7 @@ const AnalyzeInputSchema = z.object({
 });
 
 export const scrapRouter = router({
-  analyzeImage: publicProcedure
+  analyzeImage: protectedProcedure
     .input(AnalyzeInputSchema)
     .mutation(async ({ input }) => {
       const liveBatteryPricingRoadmap = [
@@ -117,7 +117,7 @@ export const scrapRouter = router({
       };
     }),
 
-  getScans: publicProcedure
+  getScans: protectedProcedure
     .input(z.object({ limit: z.number().min(1).max(100).default(10) }))
     .query(async ({ input }) => {
       const rows = await db
@@ -128,7 +128,7 @@ export const scrapRouter = router({
       return rows;
     }),
 
-  decodeSerial: publicProcedure
+  decodeSerial: protectedProcedure
     .input(z.object({ brand: z.string().min(1), serialNumber: z.string().min(1) }))
     .query(async ({ input }) => {
       const decoded = decodeSerialNumber(input.brand, input.serialNumber);
@@ -136,7 +136,7 @@ export const scrapRouter = router({
       return { decoded, profile };
     }),
 
-  getSasToken: publicProcedure
+  getSasToken: protectedProcedure
     .input(z.object({ filename: z.string() }))
     .mutation(async ({ input }) => {
       try {
