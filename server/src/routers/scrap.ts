@@ -162,7 +162,7 @@ export const scrapRouter = router({
   // SEED / DEMO DATA: yard directory is hardcoded (yards.ts). Replace with a
   // live yard directory in a future phase.
   // ---------------------------------------------------------------------------
-  compareYards: publicProcedure
+  compareYards: protectedProcedure
     .input(
       z.object({
         metals: z.array(
@@ -224,7 +224,7 @@ export const scrapRouter = router({
   // estimateInCity: "for fun / explore" mode — shows what you'd make in any
   // chosen city (e.g. "New York City") regardless of your actual location.
   // ---------------------------------------------------------------------------
-  estimateInCity: publicProcedure
+  estimateInCity: protectedProcedure
     .input(
       z.object({
         metals: z.array(
