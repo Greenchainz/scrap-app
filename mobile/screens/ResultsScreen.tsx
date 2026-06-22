@@ -25,6 +25,8 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
   const totalLow = result.estimatedValueLow.toFixed(2);
   const totalHigh = result.estimatedValueHigh.toFixed(2);
   const difficultyColor = DIFFICULTY_COLORS[result.difficulty] ?? '#555';
+  const detectedManufacturer = result.batteryPassport.manufacturer ?? 'Unknown';
+  const detectedChemistry = result.batteryPassport.chemistry ?? 'Unknown';
 
   // Value card slide-up entrance
   const cardSlide = useRef(new Animated.Value(60)).current;
@@ -162,6 +164,41 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
         </>
       )}
 
+      <Text style={styles.sectionTitle}>🔋 Battery Passport</Text>
+      <View style={styles.eraCard}>
+        <Text style={styles.eraLabel}>{result.batteryPassport.complianceStatus.toUpperCase()}</Text>
+        <View style={styles.eraSpecRow}>
+          <Text style={styles.eraSpecLabel}>State of health</Text>
+          <Text style={styles.eraSpecValue}>
+            {result.batteryPassport.stateOfHealthPct != null ? `${result.batteryPassport.stateOfHealthPct}%` : 'Not detected'}
+          </Text>
+        </View>
+        <View style={styles.eraSpecRow}>
+          <Text style={styles.eraSpecLabel}>Cycle count</Text>
+          <Text style={styles.eraSpecValue}>
+            {result.batteryPassport.cycleCount != null ? result.batteryPassport.cycleCount : 'Not detected'}
+          </Text>
+        </View>
+        <View style={styles.eraSpecRow}>
+          <Text style={styles.eraSpecLabel}>Manufacturer</Text>
+          <Text style={styles.eraSpecValue}>{detectedManufacturer}</Text>
+        </View>
+        <View style={styles.eraSpecRow}>
+          <Text style={styles.eraSpecLabel}>Chemistry</Text>
+          <Text style={styles.eraSpecValue}>{detectedChemistry}</Text>
+        </View>
+        {result.batteryPassport.captureRecommendations.map((r, i) => (
+          <Text key={i} style={styles.eraInsight}>• {r}</Text>
+        ))}
+      </View>
+
+      <Text style={styles.sectionTitle}>📈 Live Battery Pricing Roadmap</Text>
+      {result.liveBatteryPricingRoadmap.map((step, i) => (
+        <View key={i} style={styles.stepRow}>
+          <Text style={styles.stepNumber}>{i + 1}</Text>
+          <Text style={styles.stepText}>{step}</Text>
+        </View>
+      ))}
       {/* Battery compliance info (when AI detected a battery) */}
       {result.battery && (
         <View style={styles.batteryCard}>

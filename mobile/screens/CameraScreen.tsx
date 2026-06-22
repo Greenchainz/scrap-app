@@ -25,6 +25,10 @@ export type DecodedEra = {
   month: number | null;
   candidateYears: number[];
   confidence: 'high' | 'medium' | 'low';
+  identifierType?: 'appliance_serial' | 'battery_serial' | 'vin';
+  manufacturer?: string | null;
+  chemistry?: 'NMC' | 'LFP' | 'NCA' | 'LMO' | 'unknown' | null;
+  batteryEra?: string | null;
   note?: string;
 };
 
@@ -56,6 +60,29 @@ export type ScanResult = {
   extractionSteps: string[];
   difficulty: 'easy' | 'moderate' | 'hard';
   safetyWarnings: string[];
+  batteryPassport: {
+    stateOfHealthPct: number | null;
+    cycleCount: number | null;
+    manufacturer: string | null;
+    chemistry: string | null;
+    passportId: string | null;
+    complianceStatus: 'compliant' | 'partial' | 'missing';
+    captureRecommendations: string[];
+  };
+  batteryPassportHooks: {
+    ready: boolean;
+    capturePath: string;
+    uploadPath: string;
+    fields: {
+      stateOfHealthPct: number | null;
+      cycleCount: number | null;
+      manufacturer: string | null;
+      chemistry: string | null;
+      passportId: string | null;
+      vinOrSerial: string | null;
+    };
+  };
+  liveBatteryPricingRoadmap: string[];
   estimatedValueLow: number;
   estimatedValueHigh: number;
   imageUrl: string;
@@ -227,7 +254,7 @@ export default function CameraScreen({ onScanComplete }: Props) {
           ) : (
             <>
               <View style={styles.inputPanel}>
-                <Text style={styles.inputHint}>Add brand + serial to unlock manufacturing-era insights</Text>
+                <Text style={styles.inputHint}>Add EV brand + VIN/serial to unlock battery chemistry and passport insights</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Brand (optional, e.g. Whirlpool)"

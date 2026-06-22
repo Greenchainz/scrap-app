@@ -25,6 +25,8 @@ test('normalizeBrand maps known brand families', () => {
   assert.equal(normalizeBrand('Frigidaire'), 'frigidaire');
   assert.equal(normalizeBrand('Electrolux'), 'frigidaire');
   assert.equal(normalizeBrand('Samsung'), 'samsung');
+  assert.equal(normalizeBrand('Tesla'), 'ev');
+  assert.equal(normalizeBrand('CATL'), 'ev');
 });
 
 test('normalizeBrand returns unknown for unrecognized brands', () => {
@@ -119,6 +121,24 @@ test('decodeSerialNumber decodes an 11-char Samsung serial', () => {
   assert.equal(decoded.year, 2015);
   assert.equal(decoded.month, 10);
   assert.equal(decoded.confidence, 'high');
+});
+
+test('decodeSerialNumber decodes EV VIN model year and chemistry hints', () => {
+  const decoded = decodeSerialNumber('Tesla', '5YJ3E1EA7PF123456');
+  assert.equal(decoded.identifierType, 'vin');
+  assert.equal(decoded.manufacturer, 'Tesla');
+  assert.equal(decoded.year, 2023);
+  assert.equal(decoded.chemistry, 'unknown');
+  assert.equal(decoded.batteryEra, 'passport_transition');
+});
+
+test('decodeSerialNumber decodes battery serial chemistry and date clues', () => {
+  const decoded = decodeSerialNumber('CATL', 'CATL-LFP-202311-BLOCK9');
+  assert.equal(decoded.identifierType, 'battery_serial');
+  assert.equal(decoded.chemistry, 'LFP');
+  assert.equal(decoded.year, 2023);
+  assert.equal(decoded.month, 11);
+  assert.equal(decoded.batteryEra, 'passport_transition');
 });
 
 // --- getEpochForYear: boundaries -----------------------------------------
