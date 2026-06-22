@@ -14,13 +14,15 @@
     "@tanstack/react-query": "^5.74.4",
     "@trpc/client": "^11.0.0",
     "@trpc/react-query": "^11.0.0",
-    "expo": "~52.0.0",
+    "drizzle-kit": "0.31.10",
+    "expo": "^56.0.12",
     "expo-camera": "~16.0.0",
+    "expo-dev-client": "56.0.20",
     "expo-image-picker": "~16.0.0",
     "expo-location": "~18.0.0",
     "expo-status-bar": "~2.0.0",
     "react": "18.3.1",
-    "react-native": "0.76.7",
+    "react-native": "^0.86.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
