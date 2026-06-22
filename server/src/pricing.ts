@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ScrapYard } from './yards';
 
 export const MetalSchema = z.object({
   type: z.string(),
@@ -47,6 +48,35 @@ export const METAL_PRICES: Record<string, PriceRange> = {
   cobalt_black_mass: { low: 4.5, high: 8.2 },
   nickel_black_mass: { low: 2.8, high: 5.6 },
   ev_copper_busbar: { low: 4.9, high: 5.3 },
+
+  // --- EV / Battery grades (2026 baselines, USD per lb) -------------------
+  // EV copper busbars are heavier-gauge, cleaner copper than typical ICW.
+  // Priced near copper_1 due to purity but slight discount for size/prep work.
+  ev_copper_busbar: { low: 4.60, high: 5.10 },
+
+  // Whole Li-ion module (cells + BMS + housing, NOT separated). Value is
+  // blended: recoverable Li, Co, Ni, Cu, Al spread across module mass.
+  // NOTE: cell chemistry matters — NMC modules pay more than LFP due to Co/Ni.
+  // FUTURE SEAM: replace with live LME/metals-price feed when available.
+  li_ion_module: { low: 0.30, high: 0.75 },
+
+  // Black mass — shredded/processed battery material ready for hydromet.
+  // NMC black mass carries Co+Ni premium vs LFP which lacks those metals.
+  // FUTURE SEAM: these swing violently with LME Co/Ni — prime candidates for live feed.
+  nmc_black_mass: { low: 2.80, high: 4.50 },
+  lfp_black_mass: { low: 0.55, high: 1.10 },
+
+  // Nickel briquette / refined Ni — e.g. from NiMH packs or refined EV streams.
+  nickel_briquette: { low: 5.50, high: 6.80 },
+
+  // Cobalt sulfate — chemical-grade Co from NMC teardown. Extremely volatile price.
+  // FUTURE SEAM: cobalt is the #1 candidate for live price feed integration.
+  cobalt_sulfate: { low: 8.00, high: 14.00 },
+
+  // Circuit boards / e-waste. Prices reflect blended Au/Ag/Pd/Cu recovery.
+  // High-grade = server boards, GPU cards, telecom. Low-grade = consumer mainboards.
+  pcb_high_grade: { low: 3.50, high: 7.00 },
+  pcb_low_grade: { low: 0.80, high: 2.20 },
 };
 
 // Maps free-text metal names (including AI output) to a canonical grade key above.
@@ -110,6 +140,49 @@ export const METAL_ALIASES: Record<string, string> = {
   'hairpin copper': 'ev_copper_busbar',
   'high voltage copper cable': 'copper_icw',
   'hv copper cable': 'copper_icw',
+
+  // --- EV / battery aliases ------------------------------------------------
+  'ev battery': 'li_ion_module',
+  'ev battery module': 'li_ion_module',
+  'battery module': 'li_ion_module',
+  'battery pack': 'li_ion_module',
+  'lithium ion module': 'li_ion_module',
+  'lithium-ion module': 'li_ion_module',
+  'li-ion module': 'li_ion_module',
+  'lithium battery': 'li_ion_module',
+  'lithium ion battery': 'li_ion_module',
+  'lithium-ion battery': 'li_ion_module',
+  'nmc module': 'li_ion_module',
+  'lfp module': 'li_ion_module',
+  'black mass': 'nmc_black_mass',
+  'nmc black mass': 'nmc_black_mass',
+  'lfp black mass': 'lfp_black_mass',
+  'lifepo4 black mass': 'lfp_black_mass',
+  busbar: 'ev_copper_busbar',
+  busbars: 'ev_copper_busbar',
+  'ev busbar': 'ev_copper_busbar',
+  'ev copper busbar': 'ev_copper_busbar',
+  'copper busbar': 'ev_copper_busbar',
+  nickel: 'nickel_briquette',
+  'nickel briquette': 'nickel_briquette',
+  cobalt: 'cobalt_sulfate',
+  'cobalt sulfate': 'cobalt_sulfate',
+
+  // --- E-waste / circuit board aliases -------------------------------------
+  'circuit board': 'pcb_high_grade',
+  'circuit boards': 'pcb_high_grade',
+  pcb: 'pcb_high_grade',
+  pcbs: 'pcb_high_grade',
+  motherboard: 'pcb_high_grade',
+  'mother board': 'pcb_high_grade',
+  'server board': 'pcb_high_grade',
+  'graphics card': 'pcb_high_grade',
+  gpu: 'pcb_high_grade',
+  'bms board': 'pcb_high_grade',
+  'battery management system': 'pcb_high_grade',
+  'low grade pcb': 'pcb_low_grade',
+  'low-grade pcb': 'pcb_low_grade',
+  'consumer pcb': 'pcb_low_grade',
 };
 
 // Resolves any free-text metal label to a canonical grade key, or null if unknown.
@@ -138,6 +211,15 @@ export function normalizeMetalType(metalType: string): string | null {
   if (key.includes('cobalt')) return 'cobalt_black_mass';
   if (key.includes('nickel')) return 'nickel_black_mass';
   if (key.includes('busbar') || key.includes('hairpin')) return 'ev_copper_busbar';
+  // EV/battery fuzzy fallbacks (checked before generic 'copper' to avoid misclassifying)
+  if (key.includes('busbar')) return 'ev_copper_busbar';
+  if (key.includes('black mass') && key.includes('lfp')) return 'lfp_black_mass';
+  if (key.includes('black mass') || key.includes('blackmass')) return 'nmc_black_mass';
+  if (key.includes('li-ion') || key.includes('lithium') || key.includes('liion')) return 'li_ion_module';
+  if ((key.includes('battery') || key.includes('ev ')) && (key.includes('pack') || key.includes('module') || key.includes('cell'))) return 'li_ion_module';
+  if (key.includes('circuit board') || key.includes('motherboard') || key.includes('pcb')) return 'pcb_high_grade';
+  if (key.includes('cobalt')) return 'cobalt_sulfate';
+  if (key.includes('nickel')) return 'nickel_briquette';
   if (key.includes('copper')) return 'copper_2';
   if (key.includes('alumin')) return 'aluminum_clean';
   if (key.includes('stainless')) return 'stainless';
@@ -245,6 +327,64 @@ export function calculateTotalValue(
     (acc, m) => ({
       totalLow: parseFloat((acc.totalLow + m.valueLow).toFixed(2)),
       totalHigh: parseFloat((acc.totalHigh + m.valueHigh).toFixed(2)),
+    }),
+    { totalLow: 0, totalHigh: 0 },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Per-yard valuation (Part A — payout comparison engine)
+// ---------------------------------------------------------------------------
+
+/**
+ * Computes the payout for a single metal at a specific yard.
+ *
+ * Formula: basePrice × weight × stateMultiplier × yard.payoutFactor
+ *          × yard.gradePremiums[grade]  (if present)
+ *
+ * @param metalType   Free-text or canonical grade string (resolved via normalizeMetalType).
+ * @param weightRange Weight string, e.g. "2-4 lbs".
+ * @param stateMultiplier  Regional multiplier for the YARD's state (not the user's).
+ * @param yard        The specific scrap yard to price for.
+ */
+export function calculateMetalValueAtYard(
+  metalType: string,
+  weightRange: string,
+  stateMultiplier: number,
+  yard: ScrapYard,
+): { valueLow: number; valueHigh: number } {
+  const grade = normalizeMetalType(metalType);
+  const price = grade ? METAL_PRICES[grade] : undefined;
+  const priceLow = price?.low ?? 0;
+  const priceHigh = price?.high ?? 0;
+  const { low, high } = parseWeightRange(weightRange);
+  const gradePremium = (grade != null ? (yard.gradePremiums?.[grade] ?? 1.0) : 1.0);
+  const factor = stateMultiplier * yard.payoutFactor * gradePremium;
+  return {
+    valueLow: parseFloat((low * priceLow * factor).toFixed(2)),
+    valueHigh: parseFloat((high * priceHigh * factor).toFixed(2)),
+  };
+}
+
+/**
+ * Computes the total payout for a set of raw metals at a specific yard.
+ *
+ * @param metals      Array of { type, weightRange } from the AI analysis.
+ * @param stateMultiplier  Regional multiplier for the YARD's state.
+ * @param yard        The specific scrap yard.
+ */
+export function calculateTotalValueAtYard(
+  metals: Array<{ type: string; weightRange: string }>,
+  stateMultiplier: number,
+  yard: ScrapYard,
+): { totalLow: number; totalHigh: number } {
+  const values = metals.map((m) =>
+    calculateMetalValueAtYard(m.type, m.weightRange, stateMultiplier, yard),
+  );
+  return values.reduce(
+    (acc, v) => ({
+      totalLow: parseFloat((acc.totalLow + v.valueLow).toFixed(2)),
+      totalHigh: parseFloat((acc.totalHigh + v.valueHigh).toFixed(2)),
     }),
     { totalLow: 0, totalHigh: 0 },
   );

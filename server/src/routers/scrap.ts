@@ -1,9 +1,16 @@
 import { router, publicProcedure, TRPCError, z } from '../trpc';
 import { desc } from 'drizzle-orm';
 import { analyzeScrapImage } from '../openai';
-import { getRegionalMultiplier, calculateTotalValue } from '../pricing';
+import { getRegionalMultiplier, calculateTotalValue, calculateTotalValueAtYard } from '../pricing';
 import { decodeSerialNumber, describeEra } from '../era';
 import { db, schema } from '../db';
+import {
+  findNearbyYards,
+  findYardsByCity,
+  findYardsByState,
+  getSampleYards,
+  distanceMiles,
+} from '../yards';
 
 const AnalyzeInputSchema = z.object({
   imageUrl: z.string().url(),
@@ -163,5 +170,127 @@ export const scrapRouter = router({
         uploadUrl: `${blobClient.url}?${sasToken}`,
         blobUrl: blobClient.url,
       };
+    }),
+
+  // ---------------------------------------------------------------------------
+  // Per-yard payout comparison engine (Part A)
+  //
+  // compareYards: returns a ranked list of scrap yards with per-yard payout
+  // estimates for the given metals. Best-paying yard is first.
+  //
+  // Prefer calling this SEPARATELY from analyzeImage so analysis stays fast.
+  // Usage: after analyzeImage resolves, call compareYards with the metals array
+  // and the user's location/state.
+  //
+  // SEED / DEMO DATA: yard directory is hardcoded (yards.ts). Replace with a
+  // live yard directory in a future phase.
+  // ---------------------------------------------------------------------------
+  compareYards: publicProcedure
+    .input(
+      z.object({
+        metals: z.array(
+          z.object({
+            type: z.string(),
+            weightRange: z.string(),
+            percentage: z.number(),
+          }),
+        ),
+        latitude: z.number().optional(),
+        longitude: z.number().optional(),
+        state: z.string().optional(),
+        /** Maximum number of yards to return (default 8). */
+        limit: z.number().min(1).max(30).default(8),
+      }),
+    )
+    .query(({ input }) => {
+      const { metals, latitude, longitude, state, limit } = input;
+
+      // Resolve yard list based on available location data.
+      let candidateYards: ReturnType<typeof getSampleYards>;
+      if (latitude != null && longitude != null) {
+        candidateYards = findNearbyYards(latitude, longitude, Math.max(limit, 20));
+      } else if (state) {
+        candidateYards = findYardsByState(state);
+        if (candidateYards.length === 0) candidateYards = getSampleYards();
+      } else {
+        candidateYards = getSampleYards();
+      }
+
+      // Compute per-yard payout and attach distance when coords are known.
+      const results = candidateYards.map((yard) => {
+        const yardStateMultiplier = getRegionalMultiplier(yard.state);
+        const { totalLow, totalHigh } = calculateTotalValueAtYard(metals, yardStateMultiplier, yard);
+        const dist =
+          latitude != null && longitude != null
+            ? parseFloat(distanceMiles(latitude, longitude, yard.latitude, yard.longitude).toFixed(1))
+            : null;
+        return {
+          yard: {
+            id: yard.id,
+            name: yard.name,
+            city: yard.city,
+            state: yard.state,
+          },
+          distanceMiles: dist,
+          totalLow,
+          totalHigh,
+        };
+      });
+
+      // Sort by totalHigh descending — best payout first.
+      results.sort((a, b) => b.totalHigh - a.totalHigh);
+
+      return results.slice(0, limit);
+    }),
+
+  // ---------------------------------------------------------------------------
+  // estimateInCity: "for fun / explore" mode — shows what you'd make in any
+  // chosen city (e.g. "New York City") regardless of your actual location.
+  // ---------------------------------------------------------------------------
+  estimateInCity: publicProcedure
+    .input(
+      z.object({
+        metals: z.array(
+          z.object({
+            type: z.string(),
+            weightRange: z.string(),
+            percentage: z.number(),
+          }),
+        ),
+        city: z.string().min(1),
+      }),
+    )
+    .query(({ input }) => {
+      const { metals, city } = input;
+
+      const cityYards = findYardsByCity(city);
+      if (cityYards.length === 0) {
+        return { yards: [], cityBestPayout: { totalLow: 0, totalHigh: 0 }, city };
+      }
+
+      const results = cityYards.map((yard) => {
+        const yardStateMultiplier = getRegionalMultiplier(yard.state);
+        const { totalLow, totalHigh } = calculateTotalValueAtYard(metals, yardStateMultiplier, yard);
+        return {
+          yard: {
+            id: yard.id,
+            name: yard.name,
+            city: yard.city,
+            state: yard.state,
+          },
+          distanceMiles: null as null,
+          totalLow,
+          totalHigh,
+        };
+      });
+
+      // Best payout first.
+      results.sort((a, b) => b.totalHigh - a.totalHigh);
+
+      const cityBestPayout = results[0]
+        ? { totalLow: results[0].totalLow, totalHigh: results[0].totalHigh }
+        : { totalLow: 0, totalHigh: 0 };
+
+      return { yards: results, cityBestPayout, city };
     }),
 });

@@ -8,6 +8,7 @@ import {
   Animated,
 } from 'react-native';
 import type { ScanResult } from './CameraScreen.js';
+import YardComparison from './YardComparison.js';
 
 type Props = {
   result: ScanResult;
@@ -198,6 +199,54 @@ export default function ResultsScreen({ result, onScanAgain }: Props) {
           <Text style={styles.stepText}>{step}</Text>
         </View>
       ))}
+      {/* Battery compliance info (when AI detected a battery) */}
+      {result.battery && (
+        <View style={styles.batteryCard}>
+          <Text style={styles.batteryTitle}>🔋 Battery Info</Text>
+          {result.battery.chemistry && (
+            <View style={styles.batteryRow}>
+              <Text style={styles.batteryLabel}>Chemistry</Text>
+              <Text style={styles.batteryValue}>{result.battery.chemistry}</Text>
+            </View>
+          )}
+          {result.battery.stateOfHealth && (
+            <View style={styles.batteryRow}>
+              <Text style={styles.batteryLabel}>State of Health</Text>
+              <Text style={styles.batteryValue}>{result.battery.stateOfHealth}</Text>
+            </View>
+          )}
+          {result.battery.cycleCount != null && (
+            <View style={styles.batteryRow}>
+              <Text style={styles.batteryLabel}>Cycle Count</Text>
+              <Text style={styles.batteryValue}>{result.battery.cycleCount}</Text>
+            </View>
+          )}
+          <View style={styles.batteryRow}>
+            <Text style={styles.batteryLabel}>Digital Battery Passport</Text>
+            <Text style={styles.batteryValue}>
+              {result.battery.batteryPassportPresent === true
+                ? '✅ Present'
+                : result.battery.batteryPassportPresent === false
+                  ? '❌ Not visible'
+                  : 'Unknown'}
+            </Text>
+          </View>
+          {result.battery.batteryPassportPresent !== true && (
+            <Text style={styles.batteryNote}>
+              EU Battery Regulation 2023/1542: Digital Battery Passport mandatory for traction
+              batteries ≥ 2 kWh from Feb 2027. Scan QR/NFC label if present.
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Per-yard payout comparison */}
+      <YardComparison
+        metals={result.metals}
+        latitude={result.latitude}
+        longitude={result.longitude}
+        state={result.state}
+      />
 
       <Text style={styles.sectionTitle}>Extraction Steps</Text>
       {result.extractionSteps.map((step, i) => (
@@ -415,5 +464,52 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  // Battery compliance card
+  batteryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2563eb',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  batteryTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 10,
+  },
+  batteryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  batteryLabel: {
+    fontSize: 13,
+    color: '#888',
+    flexShrink: 0,
+    marginRight: 12,
+  },
+  batteryValue: {
+    fontSize: 13,
+    color: '#222',
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+  },
+  batteryNote: {
+    fontSize: 11,
+    color: '#555',
+    lineHeight: 16,
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });
