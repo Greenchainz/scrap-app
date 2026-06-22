@@ -7,3 +7,8 @@ const API_URLS: Record<string, string> = {
 };
 
 export const API_URL = process.env['EXPO_PUBLIC_API_URL'] ?? API_URLS[ENV] ?? API_URLS['development']!;
+
+// Shared API key sent with every request. EXPO_PUBLIC_* values are embedded in
+// the app bundle, so this gates casual abuse and enables rotation — it is not a
+// strong secret. Leave empty to disable auth (matches the server default).
+export const API_KEY = process.env['EXPO_PUBLIC_API_KEY'] ?? '';
