@@ -5,6 +5,9 @@ import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import { appRouter } from './routers/_app';
 import { createContext } from './trpc';
 import { rateLimit } from './ratelimit';
+import { runMigrations } from './migrate';
+import { validateConfig } from './config';
+import { pool } from './db';
 
 // Resolves the Express "trust proxy" setting from TRUST_PROXY: a hop count, a
 // boolean, or a subnet string. Defaults to 1 (trust the first proxy), which is
@@ -69,8 +72,59 @@ app.use(
 );
 
 const PORT = parseInt(process.env['PORT'] ?? '3000', 10);
-app.listen(PORT, '0.0.0.0', () => {
-  process.stdout.write(`Server running on port ${PORT}\n`);
+
+async function start(): Promise<void> {
+  validateConfig();
+  await runMigrations();
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    process.stdout.write(`Server running on port ${PORT}\n`);
+  });
+
+  // Graceful shutdown: stop accepting connections, then drain the pg pool.
+  // Azure Container Apps sends SIGTERM on every scale-in / revision swap.
+  let shuttingDown = false;
+  const shutdown = (signal: string): void => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    process.stdout.write(`${signal} received, shutting down gracefully\n`);
+
+    const forceExit: unknown = setTimeout(() => {
+      process.stderr.write('Forced shutdown after timeout\n');
+      process.exit(1);
+    }, 10000);
+    // setTimeout's return type varies by lib (Node Timeout vs DOM number); treat
+    // it structurally so .unref() is called only when the runtime provides it.
+    if (
+      forceExit !== null &&
+      typeof forceExit === 'object' &&
+      typeof (forceExit as { unref?: unknown }).unref === 'function'
+    ) {
+      (forceExit as { unref: () => void }).unref();
+    }
+
+    server.close(() => {
+      pool
+        .end()
+        .then(() => {
+          process.stdout.write('Shutdown complete\n');
+          process.exit(0);
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          process.stderr.write(`Error during shutdown: ${message}\n`);
+          process.exit(1);
+        });
+    });
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+start().catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  process.stderr.write(`Fatal startup error: ${message}\n`);
+  process.exit(1);
 });
 
 export { appRouter };
