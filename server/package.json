@@ -12,14 +12,15 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@azure/identity": "^4.13.1",
     "@azure/openai": "^2.0.0",
     "@azure/storage-blob": "^12.27.0",
-    "openai": "^4.97.0",
     "@trpc/server": "^11.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "drizzle-orm": "^0.45.2",
     "express": "^4.21.2",
+    "openai": "^4.97.0",
     "pg": "^8.13.3",
     "zod": "^3.24.2"
   },

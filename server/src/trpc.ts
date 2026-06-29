@@ -45,4 +45,13 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   return next();
 });
 
+export const staffProcedure = t.procedure.use(({ ctx, next }) => {
+  // Falls back to API_KEY if STAFF_API_KEY is not configured.
+  const staffKey = process.env['STAFF_API_KEY'] ?? process.env['API_KEY'];
+  if (!isAuthorized(staffKey, ctx.apiKey)) {
+    throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Staff access required' });
+  }
+  return next();
+});
+
 export { TRPCError, z };

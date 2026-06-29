@@ -7,8 +7,19 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { trpc } from '../utils/trpc.js';
+import YardMapView from '../components/YardMapView.js';
+import Constants from 'expo-constants';
+import { C, aquaGlow, purpleGlow, softShadow } from '../theme.js';
+
+const AZURE_MAPS_KEY = (Constants.expoConfig?.extra as { azureMapsKey?: string })?.azureMapsKey
+  ?? process.env.EXPO_PUBLIC_AZURE_MAPS_KEY
+  ?? '';
+const AZURE_MAPS_CLIENT_ID = (Constants.expoConfig?.extra as { azureMapsClientId?: string })?.azureMapsClientId
+  ?? process.env.EXPO_PUBLIC_AZURE_MAPS_CLIENT_ID
+  ?? '';
 
 type Metal = {
   type: string;
@@ -17,7 +28,17 @@ type Metal = {
 };
 
 type YardRow = {
-  yard: { id: string; name: string; city: string; state: string };
+  yard: {
+    id: string;
+    name: string;
+    city: string;
+    state: string;
+    address?: string | null;
+    phone?: string | null;
+    website?: string | null;
+  };
+  latitude?: number;
+  longitude?: number;
   distanceMiles: number | null;
   totalLow: number;
   totalHigh: number;
@@ -33,9 +54,15 @@ type Props = {
 // City preset chips for the "explore another city" mode.
 const CITY_PRESETS = ['New York City', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix', 'Seattle'];
 
+const FALLBACK_MESSAGES: Record<string, string> = {
+  state: '📍 No yards found nearby — showing yards in your state.',
+  national: '🌎 No regional yards found — showing a national sample.',
+};
+
 export default function YardComparison({ metals, latitude, longitude, state }: Props) {
   const [exploreCity, setExploreCity] = useState('');
   const [cityInputValue, setCityInputValue] = useState('');
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   // -- compareYards query (nearby / regional) --------------------------------
   const compareQuery = trpc.scrap.compareYards.useQuery(
@@ -61,20 +88,63 @@ export default function YardComparison({ metals, latitude, longitude, state }: P
   // ---------------------------------------------------------------------------
   // Compute delta vs. best payout
   // ---------------------------------------------------------------------------
-  const nearbyYards = compareQuery.data ?? [];
+  const nearbyYards = compareQuery.data?.yards ?? [];
+  const fallbackMode = compareQuery.data?.fallbackMode;
   const bestPayout = nearbyYards[0]?.totalHigh ?? 0;
+  const mapsTokenQuery = trpc.maps.getToken.useQuery(undefined, {
+    enabled: viewMode === 'map' && nearbyYards.length > 0 && !!AZURE_MAPS_CLIENT_ID,
+    staleTime: 50 * 60 * 1000,
+    retry: 1,
+  });
+
+  const mapYards = nearbyYards.map((row) => ({
+    id: row.yard.id,
+    name: row.yard.name,
+    city: row.yard.city,
+    state: row.yard.state,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    distanceMiles: row.distanceMiles,
+    totalLow: row.totalLow,
+    totalHigh: row.totalHigh,
+  }));
 
   return (
     <View>
       {/* ---- "How much you'd make" section --------------------------------- */}
-      <Text style={styles.sectionTitle}>💰 How Much You'd Make</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>💰 How Much You'd Make</Text>
+        {nearbyYards.length > 0 && (
+          <View style={styles.viewToggle}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, viewMode === 'list' && styles.toggleBtnActive]}
+              onPress={() => setViewMode('list')}
+            >
+              <Text style={[styles.toggleBtnText, viewMode === 'list' && styles.toggleBtnTextActive]}>List</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, viewMode === 'map' && styles.toggleBtnActive]}
+              onPress={() => setViewMode('map')}
+            >
+              <Text style={[styles.toggleBtnText, viewMode === 'map' && styles.toggleBtnTextActive]}>Map</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
       <Text style={styles.subtitle}>
         Ranked by payout — best yard first. Prices are estimates based on 2026 baselines.
       </Text>
 
+      {/* Fallback banner when no local yards were found */}
+      {fallbackMode && fallbackMode !== 'nearby' && (
+        <View style={styles.fallbackBanner}>
+          <Text style={styles.fallbackText}>{FALLBACK_MESSAGES[fallbackMode]}</Text>
+        </View>
+      )}
+
       {compareQuery.isLoading && (
         <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color="#1a7f4b" />
+          <ActivityIndicator size="small" color={C.aqua} />
           <Text style={styles.loadingText}>Finding nearby yards…</Text>
         </View>
       )}
@@ -83,7 +153,19 @@ export default function YardComparison({ metals, latitude, longitude, state }: P
         <Text style={styles.errorText}>Could not load yard comparison. Check connection.</Text>
       )}
 
-      {nearbyYards.length > 0 && (
+      {nearbyYards.length > 0 && viewMode === 'map' && (
+        <YardMapView
+          yards={mapYards}
+          userLatitude={latitude}
+          userLongitude={longitude}
+          azureMapsToken={mapsTokenQuery.data?.token}
+          azureMapsClientId={AZURE_MAPS_CLIENT_ID}
+          azureMapsKey={AZURE_MAPS_KEY}
+          style={styles.mapView}
+        />
+      )}
+
+      {nearbyYards.length > 0 && viewMode === 'list' && (
         <View style={styles.yardsContainer}>
           {nearbyYards.map((row, index) => {
             const isBest = index === 0;
@@ -145,7 +227,7 @@ export default function YardComparison({ metals, latitude, longitude, state }: P
 
       {cityQuery.isLoading && exploreCity.length > 0 && (
         <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color="#1a7f4b" />
+          <ActivityIndicator size="small" color={C.aqua} />
           <Text style={styles.loadingText}>Looking up {exploreCity}…</Text>
         </View>
       )}
@@ -228,6 +310,23 @@ function YardCard({ row, rank, isBest, delta }: YardCardProps) {
           )}
         </View>
       </View>
+      {(row.yard.phone || row.yard.address || row.yard.website) && (
+        <View style={styles.yardContact}>
+          {row.yard.address ? (
+            <Text style={styles.contactText} numberOfLines={1}>📍 {row.yard.address}</Text>
+          ) : null}
+          {row.yard.phone ? (
+            <TouchableOpacity onPress={() => Linking.openURL(`tel:${row.yard.phone}`)}>
+              <Text style={styles.contactLink}>📞 {row.yard.phone}</Text>
+            </TouchableOpacity>
+          ) : null}
+          {row.yard.website ? (
+            <TouchableOpacity onPress={() => Linking.openURL(row.yard.website!)}>
+              <Text style={styles.contactLink} numberOfLines={1}>🌐 {row.yard.website}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      )}
     </View>
   );
 }
@@ -237,16 +336,69 @@ function YardCard({ row, rank, isBest, delta }: YardCardProps) {
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#333',
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
     marginBottom: 4,
-    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: C.textAqua,
+    letterSpacing: 0.2,
+  },
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: C.bgCard,
+    borderRadius: 8,
+    padding: 2,
+    gap: 2,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  toggleBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  toggleBtnActive: {
+    backgroundColor: C.aqua,
+  },
+  toggleBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.textMuted,
+  },
+  toggleBtnTextActive: {
+    color: C.bg,
+    fontWeight: '800',
+  },
+  mapView: {
+    marginBottom: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: 'hidden',
+  },
+  fallbackBanner: {
+    backgroundColor: 'rgba(255,190,11,0.10)',
+    borderLeftWidth: 3,
+    borderLeftColor: C.warning,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  fallbackText: {
+    fontSize: 12,
+    color: C.warning,
+    lineHeight: 18,
   },
   subtitle: {
     fontSize: 12,
-    color: '#888',
+    color: C.textMuted,
     marginBottom: 12,
     lineHeight: 18,
   },
@@ -258,40 +410,39 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 13,
-    color: '#666',
+    color: C.textSub,
   },
   errorText: {
     fontSize: 13,
-    color: '#c0392b',
+    color: C.danger,
     marginBottom: 12,
   },
   yardsContainer: {
     marginBottom: 16,
     gap: 8,
   },
-  // Yard card
+  // Yard card — glass style
   yardCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
+    backgroundColor: C.bgCard,
+    borderRadius: 12,
     padding: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: C.border,
+    ...softShadow,
   },
   yardCardBest: {
-    borderColor: '#1a7f4b',
-    borderWidth: 2,
-    backgroundColor: '#f0fff7',
+    borderColor: C.borderPurple,
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(139,92,246,0.12)',
+    ...purpleGlow,
+    shadowRadius: 14,
+    shadowOpacity: 0.35,
   },
   bestBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#1a7f4b',
-    borderRadius: 4,
-    paddingHorizontal: 6,
+    backgroundColor: C.purple,
+    borderRadius: 6,
+    paddingHorizontal: 7,
     paddingVertical: 2,
     marginBottom: 6,
   },
@@ -299,7 +450,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   yardCardHeader: {
     flexDirection: 'row',
@@ -307,18 +458,18 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   rankBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#1a7f4b',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: C.aqua,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
   },
   rankText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
+    color: C.bg,
+    fontSize: 13,
+    fontWeight: '800',
   },
   yardInfo: {
     flex: 1,
@@ -326,15 +477,15 @@ const styles = StyleSheet.create({
   yardName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#222',
+    color: C.text,
   },
   yardNameBest: {
-    color: '#1a7f4b',
+    color: C.purpleLight,
     fontWeight: '800',
   },
   yardLocation: {
     fontSize: 12,
-    color: '#888',
+    color: C.textMuted,
     marginTop: 1,
   },
   payoutBox: {
@@ -344,16 +495,19 @@ const styles = StyleSheet.create({
   payoutAmount: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#222',
+    color: C.textSub,
   },
   payoutAmountBest: {
     fontSize: 15,
-    color: '#1a7f4b',
+    color: C.aqua,
     fontWeight: '800',
+    textShadowColor: C.aquaDim,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
   deltaText: {
     fontSize: 11,
-    color: '#c0392b',
+    color: C.danger,
     marginTop: 2,
   },
   // City explore
@@ -365,25 +519,25 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   chip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
     paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    backgroundColor: C.bgCard,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: C.border,
   },
   chipActive: {
-    backgroundColor: '#1a7f4b',
-    borderColor: '#1a7f4b',
+    backgroundColor: C.aqua,
+    borderColor: C.aqua,
   },
   chipText: {
     fontSize: 13,
-    color: '#555',
+    color: C.textSub,
     fontWeight: '500',
   },
   chipTextActive: {
-    color: '#fff',
-    fontWeight: '700',
+    color: C.bg,
+    fontWeight: '800',
   },
   cityInputRow: {
     flexDirection: 'row',
@@ -392,45 +546,66 @@ const styles = StyleSheet.create({
   },
   cityInput: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: C.bgCard,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: C.border,
     paddingHorizontal: 12,
     paddingVertical: 9,
     fontSize: 14,
-    color: '#222',
+    color: C.text,
   },
   goButton: {
-    backgroundColor: '#1a7f4b',
-    borderRadius: 8,
+    backgroundColor: C.aqua,
+    borderRadius: 10,
     paddingHorizontal: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    ...aquaGlow,
+    shadowRadius: 8,
+    shadowOpacity: 0.35,
   },
   goButtonText: {
-    color: '#fff',
+    color: C.bg,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   cityBestBanner: {
-    backgroundColor: '#1a7f4b',
-    borderRadius: 10,
+    backgroundColor: 'rgba(139,92,246,0.20)',
+    borderRadius: 12,
     padding: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: C.borderPurple,
   },
   cityBestLabel: {
-    color: '#fff',
+    color: C.purpleLight,
     fontSize: 13,
     fontWeight: '600',
     flex: 1,
   },
   cityBestAmount: {
-    color: '#fff',
+    color: C.text,
     fontSize: 15,
     fontWeight: '800',
+  },
+  yardContact: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: C.borderMuted,
+    gap: 3,
+  },
+  contactText: {
+    fontSize: 11,
+    color: C.textMuted,
+  },
+  contactLink: {
+    fontSize: 11,
+    color: C.aqua,
+    textDecorationLine: 'underline',
   },
 });

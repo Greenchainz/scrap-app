@@ -2,27 +2,32 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import { Animated, Dimensions, StyleSheet, View } from 'react-native';
 
 const { width: W, height: H } = Dimensions.get('window');
-const FLAKE_COUNT = 40;
+const FLAKE_COUNT = 45;
+
+// Mix of white, aqua, and light purple for the glass theme
+const FLAKE_COLORS = ['#ffffff', '#00d9ff', '#00ffff', '#a78bfa', '#ffffff', '#ffffff'];
 
 type Flake = {
   x: number;
   size: number;
   duration: number;
   delay: number;
-  drift: number; // horizontal drift in px
+  drift: number;
+  color: string;
   y: Animated.Value;
   opacity: Animated.Value;
 };
 
 function makeFlakes(): Flake[] {
   return Array.from({ length: FLAKE_COUNT }, () => {
-    const size = 3 + Math.random() * 7;
+    const size = 2 + Math.random() * 6;
     return {
       x: Math.random() * W,
       size,
-      duration: 4000 + Math.random() * 8000,
-      delay: Math.random() * 10000,
-      drift: (Math.random() - 0.5) * 60,
+      duration: 5000 + Math.random() * 9000,
+      delay: Math.random() * 12000,
+      drift: (Math.random() - 0.5) * 70,
+      color: FLAKE_COLORS[Math.floor(Math.random() * FLAKE_COLORS.length)]!,
       y: new Animated.Value(-20),
       opacity: new Animated.Value(0),
     };
@@ -78,6 +83,7 @@ export default function SnowOverlay() {
               borderRadius: flake.size / 2,
               left: flake.x,
               opacity: flake.opacity,
+              backgroundColor: flake.color,
               transform: [
                 { translateY: flake.y },
                 {
@@ -99,6 +105,6 @@ const styles = StyleSheet.create({
   flake: {
     position: 'absolute',
     top: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#ffffff', // overridden inline per flake
   },
 });
