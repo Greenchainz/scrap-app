@@ -9,101 +9,6 @@ import {
   getLatestPricesForYard,
   validatePriceBounds,
 } from '../priceReports';
-
-  // ---------------------------------------------------------------------------
-  // submitYardReview — Yelp-style: user rates their experience at a yard.
-  // ---------------------------------------------------------------------------
-  submitYardReview: protectedProcedure
-    .input(z.object({
-      yardId:       z.string().min(1).max(100),
-      rating:       z.number().int().min(1).max(5),
-      verdict:      z.enum(['great', 'fair', 'fair_but_slow', 'lowballed', 'avoid']),
-      saleType:     z.enum(['metal', 'whole_car', 'catalytic_converter', 'parts']).default('metal'),
-      offeredPrice: z.number().positive().optional(),
-      actualPrice:  z.number().positive().optional(),
-      comment:      z.string().max(1000).optional(),
-    }))
-    .mutation(async ({ ctx, input }) => {
-      const [review] = await db
-        .insert(schema.yardReviews)
-        .values({
-          yardId:       input.yardId,
-          userId:       ctx.apiKey ?? null,
-          rating:       input.rating,
-          verdict:      input.verdict,
-          saleType:     input.saleType,
-          offeredPrice: input.offeredPrice ?? null,
-          actualPrice:  input.actualPrice ?? null,
-          comment:      input.comment ?? null,
-        })
-        .returning();
-      return review!;
-    }),
-
-  // ---------------------------------------------------------------------------
-  // getYardProfile — full profile: yard info + latest prices + recent reviews
-  //                  + aggregate rating. The "yard page" data source.
-  // ---------------------------------------------------------------------------
-  getYardProfile: protectedProcedure
-    .input(z.object({ yardId: z.string().min(1) }))
-    .query(async ({ input }) => {
-      // Prices
-      const prices = await getLatestPricesForYard(input.yardId);
-
-      // Reviews (latest 20)
-      const reviews = await db
-        .select()
-        .from(schema.yardReviews)
-        .where(eq(schema.yardReviews.yardId, input.yardId))
-        .orderBy(desc(schema.yardReviews.createdAt))
-        .limit(20);
-
-      // Aggregate stats
-      const [stats] = await db
-        .select({
-          avgRating:   avg(schema.yardReviews.rating),
-          reviewCount: count(schema.yardReviews.id),
-        })
-        .from(schema.yardReviews)
-        .where(eq(schema.yardReviews.yardId, input.yardId));
-
-      // Verdict breakdown
-      const verdictRows = await db
-        .select({ verdict: schema.yardReviews.verdict, total: count(schema.yardReviews.id) })
-        .from(schema.yardReviews)
-        .where(eq(schema.yardReviews.yardId, input.yardId))
-        .groupBy(schema.yardReviews.verdict);
-
-      const verdictBreakdown = Object.fromEntries(verdictRows.map(r => [r.verdict, Number(r.total)]));
-
-      return {
-        prices: prices.map(r => ({
-          metalType:  r.metalType,
-          pricePerLb: r.pricePerLb,
-          source:     r.source,
-          verified:   r.verified,
-          reportedAt: r.reportedAt.toISOString(),
-          ageHours:   Math.round((Date.now() - r.reportedAt.getTime()) / 3_600_000),
-          notes:      r.notes,
-        })),
-        reviews: reviews.map(r => ({
-          id:           r.id,
-          rating:       r.rating,
-          verdict:      r.verdict,
-          saleType:     r.saleType,
-          offeredPrice: r.offeredPrice,
-          actualPrice:  r.actualPrice,
-          comment:      r.comment,
-          yardResponded: r.yardResponded,
-          yardResponse:  r.yardResponse,
-          createdAt:    r.createdAt.toISOString(),
-        })),
-        avgRating:       stats?.avgRating ? Number(Number(stats.avgRating).toFixed(1)) : null,
-        reviewCount:     Number(stats?.reviewCount ?? 0),
-        verdictBreakdown,
-      };
-    }),
-
 const VALID_METAL_TYPES = new Set(METAL_TYPE_IDS);
 
 export const yardsRouter = router({
@@ -218,5 +123,95 @@ export const yardsRouter = router({
         ageHours:   Math.round((Date.now() - r.reportedAt.getTime()) / 3_600_000),
         notes:      r.notes,
       }));
+    }),
+
+  // ---------------------------------------------------------------------------
+  // submitYardReview — Yelp-style: user rates their experience at a yard.
+  // ---------------------------------------------------------------------------
+  submitYardReview: protectedProcedure
+    .input(z.object({
+      yardId:       z.string().min(1).max(100),
+      rating:       z.number().int().min(1).max(5),
+      verdict:      z.enum(['great', 'fair', 'fair_but_slow', 'lowballed', 'avoid']),
+      saleType:     z.enum(['metal', 'whole_car', 'catalytic_converter', 'parts']).default('metal'),
+      offeredPrice: z.number().positive().optional(),
+      actualPrice:  z.number().positive().optional(),
+      comment:      z.string().max(1000).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const [review] = await db
+        .insert(schema.yardReviews)
+        .values({
+          yardId:       input.yardId,
+          userId:       ctx.apiKey ?? null,
+          rating:       input.rating,
+          verdict:      input.verdict,
+          saleType:     input.saleType,
+          offeredPrice: input.offeredPrice ?? null,
+          actualPrice:  input.actualPrice ?? null,
+          comment:      input.comment ?? null,
+        })
+        .returning();
+      return review!;
+    }),
+
+  // ---------------------------------------------------------------------------
+  // getYardProfile — full profile: yard info + latest prices + recent reviews
+  //                  + aggregate rating. The "yard page" data source.
+  // ---------------------------------------------------------------------------
+  getYardProfile: protectedProcedure
+    .input(z.object({ yardId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      const prices = await getLatestPricesForYard(input.yardId);
+
+      const reviews = await db
+        .select()
+        .from(schema.yardReviews)
+        .where(eq(schema.yardReviews.yardId, input.yardId))
+        .orderBy(desc(schema.yardReviews.createdAt))
+        .limit(20);
+
+      const [stats] = await db
+        .select({
+          avgRating:   avg(schema.yardReviews.rating),
+          reviewCount: count(schema.yardReviews.id),
+        })
+        .from(schema.yardReviews)
+        .where(eq(schema.yardReviews.yardId, input.yardId));
+
+      const verdictRows = await db
+        .select({ verdict: schema.yardReviews.verdict, total: count(schema.yardReviews.id) })
+        .from(schema.yardReviews)
+        .where(eq(schema.yardReviews.yardId, input.yardId))
+        .groupBy(schema.yardReviews.verdict);
+
+      const verdictBreakdown = Object.fromEntries(verdictRows.map((r) => [r.verdict, Number(r.total)]));
+
+      return {
+        prices: prices.map((r) => ({
+          metalType:  r.metalType,
+          pricePerLb: r.pricePerLb,
+          source:     r.source,
+          verified:   r.verified,
+          reportedAt: r.reportedAt.toISOString(),
+          ageHours:   Math.round((Date.now() - r.reportedAt.getTime()) / 3_600_000),
+          notes:      r.notes,
+        })),
+        reviews: reviews.map((r) => ({
+          id:            r.id,
+          rating:        r.rating,
+          verdict:       r.verdict,
+          saleType:      r.saleType,
+          offeredPrice:  r.offeredPrice,
+          actualPrice:   r.actualPrice,
+          comment:       r.comment,
+          yardResponded: r.yardResponded,
+          yardResponse:  r.yardResponse,
+          createdAt:     r.createdAt.toISOString(),
+        })),
+        avgRating: stats?.avgRating ? Number(Number(stats.avgRating).toFixed(1)) : null,
+        reviewCount: Number(stats?.reviewCount ?? 0),
+        verdictBreakdown,
+      };
     }),
 });

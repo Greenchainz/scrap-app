@@ -1,13 +1,9 @@
 /**
  * YardMapView — Azure Maps rendered inside a WebView.
  *
- * Uses the official Azure Maps JavaScript SDK (atlas.js) served from CDN.
- * No Google Maps, no Apple Maps — pure Azure.
- *
- * Pin colours:
- *   Green  = #1 ranked yard (best payout)
- *   Amber  = ranks 2 through top 40%
- *   Grey   = rest
+ * Auth modes:
+ * 1) AAD token + clientId (preferred production path, no key in app bundle)
+ * 2) Subscription key (local/dev fallback)
  */
 import React, { useRef } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
@@ -29,22 +25,35 @@ type Props = {
   yards: YardMapRow[];
   userLatitude?: number;
   userLongitude?: number;
-  /** Azure Maps subscription key — pass via EXPO_PUBLIC_AZURE_MAPS_KEY */
-  azureMapsKey: string;
+  azureMapsToken?: string;
+  azureMapsClientId?: string;
+  azureMapsKey?: string;
   style?: object;
 };
+
+function buildAuthOptions(
+  azureMapsToken: string | undefined,
+  azureMapsClientId: string | undefined,
+  azureMapsKey: string | undefined,
+): string {
+  if (azureMapsToken && azureMapsClientId) {
+    return `authType: 'anonymous', clientId: '${azureMapsClientId}', getToken: function(resolve) { resolve('${azureMapsToken}'); }`;
+  }
+  return `authType: 'subscriptionKey', subscriptionKey: '${azureMapsKey ?? ''}'`;
+}
 
 function buildMapHtml(
   yards: YardMapRow[],
   userLatitude: number | undefined,
   userLongitude: number | undefined,
-  azureMapsKey: string,
+  azureMapsToken: string | undefined,
+  azureMapsClientId: string | undefined,
+  azureMapsKey: string | undefined,
 ): string {
   const amberThreshold = Math.max(1, Math.floor(yards.length * 0.4));
-
-  // Centre map: user location if available, else first yard, else Seattle fallback
   const centerLon = userLongitude ?? yards[0]?.longitude ?? -122.3321;
   const centerLat = userLatitude ?? yards[0]?.latitude ?? 47.6062;
+  const authOptions = buildAuthOptions(azureMapsToken, azureMapsClientId, azureMapsKey);
 
   const yardsJson = JSON.stringify(
     yards.map((y, i) => ({
@@ -58,7 +67,7 @@ function buildMapHtml(
       low: y.totalLow,
       high: y.totalHigh,
       rank: i + 1,
-      color: i === 0 ? '#1a7f4b' : i < amberThreshold ? '#e08a00' : '#888888',
+    color: i === 0 ? '#8b5cf6' : i < amberThreshold ? '#00d9ff' : '#555577',
     })),
   );
 
@@ -83,11 +92,11 @@ function buildMapHtml(
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; }
     #map { width: 100%; height: 100%; }
-    .popup-box { padding: 10px; min-width: 150px; font-family: -apple-system, sans-serif; }
-    .popup-name { font-weight: 700; font-size: 13px; color: #222; }
-    .popup-loc  { font-size: 11px; color: #888; margin-top: 2px; }
-    .popup-pay  { font-weight: 800; font-size: 13px; color: #1a7f4b; margin-top: 4px; }
-    .popup-dist { font-size: 11px; color: #aaa; margin-top: 2px; }
+    .popup-box { padding: 10px; min-width: 150px; font-family: -apple-system, sans-serif; background: #12082a; border: 1px solid rgba(0,217,255,0.3); border-radius: 8px; }
+    .popup-name { font-weight: 700; font-size: 13px; color: #fff; }
+    .popup-loc  { font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+    .popup-pay  { font-weight: 800; font-size: 13px; color: #00d9ff; margin-top: 4px; }
+    .popup-dist { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -101,10 +110,7 @@ function buildMapHtml(
       zoom: 10,
       style: 'road',
       language: 'en-US',
-      authOptions: {
-        authType: 'subscriptionKey',
-        subscriptionKey: '${azureMapsKey}'
-      }
+      authOptions: { ${authOptions} }
     });
 
     map.events.add('ready', function () {
@@ -126,7 +132,7 @@ function buildMapHtml(
               '<div class="popup-box">' +
               '<div class="popup-name">' + y.name + '</div>' +
               '<div class="popup-loc">' + y.city + ', ' + y.state + '</div>' +
-              '<div class="popup-pay">$' + y.low.toFixed(2) + ' – $' + y.high.toFixed(2) + '</div>' +
+              '<div class="popup-pay">$' + y.low.toFixed(2) + ' \\u2013 $' + y.high.toFixed(2) + '</div>' +
               (y.dist != null ? '<div class="popup-dist">' + y.dist + ' mi away</div>' : '') +
               '</div>',
             position: [y.lon, y.lat],
@@ -137,7 +143,6 @@ function buildMapHtml(
         map.markers.add(marker);
       });
 
-      // Auto-fit camera to show all yards + user position
       var positions = yards.map(function (y) { return [y.lon, y.lat]; });
       ${userLatitude != null ? `positions.push([${userLongitude}, ${userLatitude}]);` : ''}
       if (positions.length > 1) {
@@ -153,20 +158,23 @@ export default function YardMapView({
   yards,
   userLatitude,
   userLongitude,
+  azureMapsToken,
+  azureMapsClientId,
   azureMapsKey,
   style,
 }: Props) {
-  const webViewRef = useRef<WebView>(null);
-  const html = buildMapHtml(yards, userLatitude, userLongitude, azureMapsKey);
+  const webViewRef = useRef<InstanceType<typeof WebView>>(null);
+  const hasAuth = (azureMapsToken && azureMapsClientId) || azureMapsKey;
+  const html = buildMapHtml(yards, userLatitude, userLongitude, azureMapsToken, azureMapsClientId, azureMapsKey);
 
   return (
     <View style={[styles.container, style]}>
-      {!azureMapsKey && (
+      {!hasAuth && (
         <View style={styles.keyMissing}>
           <ActivityIndicator color="#888" />
         </View>
       )}
-      {!!azureMapsKey && (
+      {!!hasAuth && (
         <WebView
           ref={webViewRef}
           source={{ html }}

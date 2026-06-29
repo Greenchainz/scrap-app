@@ -12,9 +12,13 @@ import {
 import { trpc } from '../utils/trpc.js';
 import YardMapView from '../components/YardMapView.js';
 import Constants from 'expo-constants';
+import { C, aquaGlow, purpleGlow, softShadow } from '../theme.js';
 
 const AZURE_MAPS_KEY = (Constants.expoConfig?.extra as { azureMapsKey?: string })?.azureMapsKey
   ?? process.env.EXPO_PUBLIC_AZURE_MAPS_KEY
+  ?? '';
+const AZURE_MAPS_CLIENT_ID = (Constants.expoConfig?.extra as { azureMapsClientId?: string })?.azureMapsClientId
+  ?? process.env.EXPO_PUBLIC_AZURE_MAPS_CLIENT_ID
   ?? '';
 
 type Metal = {
@@ -29,12 +33,12 @@ type YardRow = {
     name: string;
     city: string;
     state: string;
-    address: string | null;
-    phone: string | null;
-    website: string | null;
+    address?: string | null;
+    phone?: string | null;
+    website?: string | null;
   };
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   distanceMiles: number | null;
   totalLow: number;
   totalHigh: number;
@@ -87,6 +91,11 @@ export default function YardComparison({ metals, latitude, longitude, state }: P
   const nearbyYards = compareQuery.data?.yards ?? [];
   const fallbackMode = compareQuery.data?.fallbackMode;
   const bestPayout = nearbyYards[0]?.totalHigh ?? 0;
+  const mapsTokenQuery = trpc.maps.getToken.useQuery(undefined, {
+    enabled: viewMode === 'map' && nearbyYards.length > 0 && !!AZURE_MAPS_CLIENT_ID,
+    staleTime: 50 * 60 * 1000,
+    retry: 1,
+  });
 
   const mapYards = nearbyYards.map((row) => ({
     id: row.yard.id,
@@ -135,7 +144,7 @@ export default function YardComparison({ metals, latitude, longitude, state }: P
 
       {compareQuery.isLoading && (
         <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color="#1a7f4b" />
+          <ActivityIndicator size="small" color={C.aqua} />
           <Text style={styles.loadingText}>Finding nearby yards…</Text>
         </View>
       )}
@@ -149,6 +158,8 @@ export default function YardComparison({ metals, latitude, longitude, state }: P
           yards={mapYards}
           userLatitude={latitude}
           userLongitude={longitude}
+          azureMapsToken={mapsTokenQuery.data?.token}
+          azureMapsClientId={AZURE_MAPS_CLIENT_ID}
           azureMapsKey={AZURE_MAPS_KEY}
           style={styles.mapView}
         />
@@ -216,7 +227,7 @@ export default function YardComparison({ metals, latitude, longitude, state }: P
 
       {cityQuery.isLoading && exploreCity.length > 0 && (
         <View style={styles.loadingRow}>
-          <ActivityIndicator size="small" color="#1a7f4b" />
+          <ActivityIndicator size="small" color={C.aqua} />
           <Text style={styles.loadingText}>Looking up {exploreCity}…</Text>
         </View>
       )}
@@ -329,20 +340,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 10,
     marginBottom: 4,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#333',
+    color: C.textAqua,
+    letterSpacing: 0.2,
   },
   viewToggle: {
     flexDirection: 'row',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: C.bgCard,
     borderRadius: 8,
     padding: 2,
     gap: 2,
+    borderWidth: 1,
+    borderColor: C.border,
   },
   toggleBtn: {
     paddingHorizontal: 12,
@@ -350,36 +364,41 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   toggleBtnActive: {
-    backgroundColor: '#1a7f4b',
+    backgroundColor: C.aqua,
   },
   toggleBtnText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#666',
+    color: C.textMuted,
   },
   toggleBtnTextActive: {
-    color: '#fff',
+    color: C.bg,
+    fontWeight: '800',
   },
   mapView: {
-    marginBottom: 16,
+    marginBottom: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: 'hidden',
   },
   fallbackBanner: {
-    backgroundColor: '#fff8e1',
+    backgroundColor: 'rgba(255,190,11,0.10)',
     borderLeftWidth: 3,
-    borderLeftColor: '#e08a00',
-    borderRadius: 6,
+    borderLeftColor: C.warning,
+    borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 10,
   },
   fallbackText: {
     fontSize: 12,
-    color: '#7a5a00',
+    color: C.warning,
     lineHeight: 18,
   },
   subtitle: {
     fontSize: 12,
-    color: '#888',
+    color: C.textMuted,
     marginBottom: 12,
     lineHeight: 18,
   },
@@ -391,40 +410,39 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 13,
-    color: '#666',
+    color: C.textSub,
   },
   errorText: {
     fontSize: 13,
-    color: '#c0392b',
+    color: C.danger,
     marginBottom: 12,
   },
   yardsContainer: {
     marginBottom: 16,
     gap: 8,
   },
-  // Yard card
+  // Yard card — glass style
   yardCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
+    backgroundColor: C.bgCard,
+    borderRadius: 12,
     padding: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: C.border,
+    ...softShadow,
   },
   yardCardBest: {
-    borderColor: '#1a7f4b',
-    borderWidth: 2,
-    backgroundColor: '#f0fff7',
+    borderColor: C.borderPurple,
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(139,92,246,0.12)',
+    ...purpleGlow,
+    shadowRadius: 14,
+    shadowOpacity: 0.35,
   },
   bestBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#1a7f4b',
-    borderRadius: 4,
-    paddingHorizontal: 6,
+    backgroundColor: C.purple,
+    borderRadius: 6,
+    paddingHorizontal: 7,
     paddingVertical: 2,
     marginBottom: 6,
   },
@@ -432,7 +450,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   yardCardHeader: {
     flexDirection: 'row',
@@ -440,18 +458,18 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   rankBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#1a7f4b',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: C.aqua,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
   },
   rankText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
+    color: C.bg,
+    fontSize: 13,
+    fontWeight: '800',
   },
   yardInfo: {
     flex: 1,
@@ -459,15 +477,15 @@ const styles = StyleSheet.create({
   yardName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#222',
+    color: C.text,
   },
   yardNameBest: {
-    color: '#1a7f4b',
+    color: C.purpleLight,
     fontWeight: '800',
   },
   yardLocation: {
     fontSize: 12,
-    color: '#888',
+    color: C.textMuted,
     marginTop: 1,
   },
   payoutBox: {
@@ -477,16 +495,19 @@ const styles = StyleSheet.create({
   payoutAmount: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#222',
+    color: C.textSub,
   },
   payoutAmountBest: {
     fontSize: 15,
-    color: '#1a7f4b',
+    color: C.aqua,
     fontWeight: '800',
+    textShadowColor: C.aquaDim,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
   deltaText: {
     fontSize: 11,
-    color: '#c0392b',
+    color: C.danger,
     marginTop: 2,
   },
   // City explore
@@ -498,25 +519,25 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   chip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
     paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#f0f0f0',
+    borderRadius: 20,
+    backgroundColor: C.bgCard,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: C.border,
   },
   chipActive: {
-    backgroundColor: '#1a7f4b',
-    borderColor: '#1a7f4b',
+    backgroundColor: C.aqua,
+    borderColor: C.aqua,
   },
   chipText: {
     fontSize: 13,
-    color: '#555',
+    color: C.textSub,
     fontWeight: '500',
   },
   chipTextActive: {
-    color: '#fff',
-    fontWeight: '700',
+    color: C.bg,
+    fontWeight: '800',
   },
   cityInputRow: {
     flexDirection: 'row',
@@ -525,62 +546,66 @@ const styles = StyleSheet.create({
   },
   cityInput: {
     flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: C.bgCard,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: C.border,
     paddingHorizontal: 12,
     paddingVertical: 9,
     fontSize: 14,
-    color: '#222',
+    color: C.text,
   },
   goButton: {
-    backgroundColor: '#1a7f4b',
-    borderRadius: 8,
+    backgroundColor: C.aqua,
+    borderRadius: 10,
     paddingHorizontal: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    ...aquaGlow,
+    shadowRadius: 8,
+    shadowOpacity: 0.35,
   },
   goButtonText: {
-    color: '#fff',
+    color: C.bg,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   cityBestBanner: {
-    backgroundColor: '#1a7f4b',
-    borderRadius: 10,
+    backgroundColor: 'rgba(139,92,246,0.20)',
+    borderRadius: 12,
     padding: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: C.borderPurple,
   },
   cityBestLabel: {
-    color: '#fff',
+    color: C.purpleLight,
     fontSize: 13,
     fontWeight: '600',
     flex: 1,
   },
   cityBestAmount: {
-    color: '#fff',
+    color: C.text,
     fontSize: 15,
     fontWeight: '800',
   },
-  // Contact info on yard cards
   yardContact: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: C.borderMuted,
     gap: 3,
   },
   contactText: {
     fontSize: 11,
-    color: '#666',
+    color: C.textMuted,
   },
   contactLink: {
     fontSize: 11,
-    color: '#1a7f4b',
+    color: C.aqua,
     textDecorationLine: 'underline',
   },
 });

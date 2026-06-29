@@ -94,7 +94,7 @@ export const vehicleRouter = router({
       longitude:       z.number().optional(),
       state:           z.string().length(2).optional(),
     }))
-    .query(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }) => {
       // Resolve actual curb weight — prefer caller-supplied, then NHTSA, then class avg
       let curbWeightLbs = input.curbWeightLbs;
       if (!curbWeightLbs) {

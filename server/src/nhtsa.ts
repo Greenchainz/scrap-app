@@ -27,10 +27,17 @@ export async function getNHTSACurbWeight(
       ...(model ? { Model: model } : {}),
     });
 
-    const res = await fetch(
-      `${NHTSA_BASE}/GetCanadianVehicleSpecifications/?${params.toString()}`,
-      { signal: AbortSignal.timeout(5_000) },
-    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5_000);
+    let res: Response;
+    try {
+      res = await fetch(
+        `${NHTSA_BASE}/GetCanadianVehicleSpecifications/?${params.toString()}`,
+        { signal: controller.signal },
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
     if (!res.ok) return null;
 
     const data: { Results?: { CW?: string }[] } = await res.json();
@@ -48,10 +55,17 @@ export async function getNHTSACurbWeight(
  */
 export async function getNHTSACurbWeightByVin(vin: string): Promise<number | null> {
   try {
-    const res = await fetch(
-      `${NHTSA_BASE}/DecodeVinValues/${encodeURIComponent(vin)}?format=json`,
-      { signal: AbortSignal.timeout(5_000) },
-    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5_000);
+    let res: Response;
+    try {
+      res = await fetch(
+        `${NHTSA_BASE}/DecodeVinValues/${encodeURIComponent(vin)}?format=json`,
+        { signal: controller.signal },
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
     if (!res.ok) return null;
 
     const data: { Results?: { CurbWeightLB?: string }[] } = await res.json();
