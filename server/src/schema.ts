@@ -1,4 +1,4 @@
-import { pgTable, serial, text, real, jsonb, timestamp, uuid, boolean, index } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, real, jsonb, timestamp, uuid, boolean, integer, index } from 'drizzle-orm/pg-core';
 
 export const scans = pgTable('scans', {
   id: serial('id').primaryKey(),
@@ -36,6 +36,10 @@ export const yards = pgTable('yards', {
   status: text('status').notNull().default('unverified'),
   // 'staff' | 'scraped' | 'claimed'
   source: text('source').notNull().default('staff'),
+  // 'full_service' | 'pick_and_pull' | 'shredder' | 'unknown'
+  yardType: text('yard_type').notNull().default('unknown'),
+  // whether this yard purchases whole end-of-life vehicles
+  buysCars: boolean('buys_cars').notNull().default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -65,3 +69,30 @@ export type Yard = typeof yards.$inferSelect;
 export type NewYard = typeof yards.$inferInsert;
 export type YardPriceReport = typeof yardPriceReports.$inferSelect;
 export type NewYardPriceReport = typeof yardPriceReports.$inferInsert;
+
+// ─── Vehicle valuation logs ───────────────────────────────────────────────────
+// Analytics: every time a user estimates their car value, we log it.
+// Helps identify high-demand markets + improve estimates over time.
+
+export const vehicleValuationLogs = pgTable('vehicle_valuation_logs', {
+  id:              uuid('id').primaryKey().defaultRandom(),
+  vehicleClass:    text('vehicle_class').notNull(),
+  make:            text('make'),
+  year:            integer('year'),
+  condition:       text('condition').notNull(),
+  hasCatConverter: boolean('has_cat_converter').notNull(),
+  catType:         text('cat_type').notNull(),
+  estimateLow:     real('estimate_low').notNull(),
+  estimateHigh:    real('estimate_high').notNull(),
+  latitude:        real('latitude'),
+  longitude:       real('longitude'),
+  state:           text('state'),
+  userId:          text('user_id'),
+  createdAt:       timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('vvl_state_idx').on(t.state),
+  index('vvl_created_at_idx').on(t.createdAt),
+]);
+
+export type VehicleValuationLog = typeof vehicleValuationLogs.$inferSelect;
+export type NewVehicleValuationLog = typeof vehicleValuationLogs.$inferInsert;
