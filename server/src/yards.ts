@@ -27,7 +27,14 @@ export type ScrapYard = {
    * calculation. E.g. a copper specialist paying 5 % extra: { copper_bare_bright: 1.05 }
    */
   gradePremiums?: Partial<Record<string, number>>;
+  /** Contact info — populated when real yard directory data replaces seed data. */
+  address?: string;
+  phone?: string;
+  website?: string;
 };
+
+/** Indicates how the yard list was resolved when GPS coordinates are provided. */
+export type NearbyFallbackMode = 'nearby' | 'state' | 'national';
 
 // ---------------------------------------------------------------------------
 // Seed / demo yard listings
@@ -351,13 +358,15 @@ export function findNearbyYards(
   lat: number,
   lon: number,
   limit = 10,
+  maxRadiusMiles?: number,
 ): Array<ScrapYard & { distanceMiles: number }> {
-  return SEED_YARDS.map((yard) => ({
+  const withDistance = SEED_YARDS.map((yard) => ({
     ...yard,
     distanceMiles: parseFloat(distanceMiles(lat, lon, yard.latitude, yard.longitude).toFixed(1)),
-  }))
-    .sort((a, b) => a.distanceMiles - b.distanceMiles)
-    .slice(0, limit);
+  }));
+  const filtered =
+    maxRadiusMiles != null ? withDistance.filter((y) => y.distanceMiles <= maxRadiusMiles) : withDistance;
+  return filtered.sort((a, b) => a.distanceMiles - b.distanceMiles).slice(0, limit);
 }
 
 /**
@@ -388,4 +397,47 @@ export function getSampleYards(): ScrapYard[] {
     'col-01', 'sea-01', 'mia-01', 'rur-01',
   ];
   return SEED_YARDS.filter((y) => sampleIds.includes(y.id));
+}
+
+/**
+ * Returns yards within maxRadiusMiles of (lat, lon) with automatic fallback:
+ *   "nearby"   — yards found within maxRadiusMiles
+ *   "state"    — no nearby yards; falls back to the provided state's yards
+ *   "national" — no state yards either; falls back to the national sample
+ *
+ * All returned yards include a computed distanceMiles from (lat, lon).
+ */
+export function findNearbyYardsWithFallback(
+  lat: number,
+  lon: number,
+  state: string | undefined,
+  limit: number,
+  maxRadiusMiles = 75,
+): { yards: Array<ScrapYard & { distanceMiles: number }>; fallbackMode: NearbyFallbackMode; searchRadiusMiles: number } {
+  const nearby = findNearbyYards(lat, lon, limit, maxRadiusMiles);
+  if (nearby.length > 0) {
+    return { yards: nearby, fallbackMode: 'nearby', searchRadiusMiles: maxRadiusMiles };
+  }
+
+  // No yards within radius — try state-level fallback
+  if (state) {
+    const stateYards = findYardsByState(state)
+      .slice(0, limit)
+      .map((y) => ({
+        ...y,
+        distanceMiles: parseFloat(distanceMiles(lat, lon, y.latitude, y.longitude).toFixed(1)),
+      }));
+    if (stateYards.length > 0) {
+      return { yards: stateYards, fallbackMode: 'state', searchRadiusMiles: maxRadiusMiles };
+    }
+  }
+
+  // Last resort — national sample
+  const national = getSampleYards()
+    .slice(0, limit)
+    .map((y) => ({
+      ...y,
+      distanceMiles: parseFloat(distanceMiles(lat, lon, y.latitude, y.longitude).toFixed(1)),
+    }));
+  return { yards: national, fallbackMode: 'national', searchRadiusMiles: maxRadiusMiles };
 }

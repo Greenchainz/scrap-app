@@ -30,6 +30,7 @@
     "plugins": [
       "expo-camera",
       "expo-location",
+      "react-native-webview",
       [
         "expo-image-picker",
         {

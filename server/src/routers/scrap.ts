@@ -6,11 +6,12 @@ import { decodeSerialNumber, describeEra } from '../era';
 import { createUploadSas, toReadableImageUrl } from '../blob';
 import { db, schema } from '../db';
 import {
-  findNearbyYards,
+  findNearbyYardsWithFallback,
   findYardsByCity,
   findYardsByState,
   getSampleYards,
   distanceMiles,
+  type NearbyFallbackMode,
 } from '../yards';
 
 const AnalyzeInputSchema = z.object({
@@ -175,22 +176,38 @@ export const scrapRouter = router({
         latitude: z.number().optional(),
         longitude: z.number().optional(),
         state: z.string().optional(),
+        /** Search radius in miles (default 75). Ignored when only state/national fallback applies. */
+        maxRadiusMiles: z.number().min(10).max(500).default(75),
         /** Maximum number of yards to return (default 8). */
         limit: z.number().min(1).max(30).default(8),
       }),
     )
     .query(({ input }) => {
-      const { metals, latitude, longitude, state, limit } = input;
+      const { metals, latitude, longitude, state, limit, maxRadiusMiles } = input;
 
-      // Resolve yard list based on available location data.
+      // Resolve yard list with radius cap + automatic fallback.
       let candidateYards: ReturnType<typeof getSampleYards>;
+      let fallbackMode: NearbyFallbackMode;
+      let searchRadiusMiles: number | null = null;
+
       if (latitude != null && longitude != null) {
-        candidateYards = findNearbyYards(latitude, longitude, Math.max(limit, 20));
+        const result = findNearbyYardsWithFallback(
+          latitude,
+          longitude,
+          state,
+          Math.max(limit, 20),
+          maxRadiusMiles,
+        );
+        candidateYards = result.yards;
+        fallbackMode = result.fallbackMode;
+        searchRadiusMiles = result.searchRadiusMiles;
       } else if (state) {
         candidateYards = findYardsByState(state);
         if (candidateYards.length === 0) candidateYards = getSampleYards();
+        fallbackMode = candidateYards.length > 0 ? 'state' : 'national';
       } else {
         candidateYards = getSampleYards();
+        fallbackMode = 'national';
       }
 
       // Compute per-yard payout and attach distance when coords are known.
@@ -207,7 +224,12 @@ export const scrapRouter = router({
             name: yard.name,
             city: yard.city,
             state: yard.state,
+            address: yard.address ?? null,
+            phone: yard.phone ?? null,
+            website: yard.website ?? null,
           },
+          latitude: yard.latitude,
+          longitude: yard.longitude,
           distanceMiles: dist,
           totalLow,
           totalHigh,
@@ -217,7 +239,11 @@ export const scrapRouter = router({
       // Sort by totalHigh descending — best payout first.
       results.sort((a, b) => b.totalHigh - a.totalHigh);
 
-      return results.slice(0, limit);
+      return {
+        yards: results.slice(0, limit),
+        fallbackMode,
+        searchRadiusMiles,
+      };
     }),
 
   // ---------------------------------------------------------------------------
