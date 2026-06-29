@@ -1,11 +1,19 @@
 // Vehicle whole-car valuation engine.
 // Given a vehicle class + condition + cat type, returns a dollar estimate
 // broken down by metal type. Uses DB prices when available, fallback otherwise.
+//
+// Research updates applied (June 28–29, 2026):
+//   - Steel fallback updated: $0.085–$0.12/lb ($170–$240/ton actual market)
+//   - Condition multipliers reanchored: dead_no_start = 1.0, running = 1.55 avg
+//   - OEM vs aftermarket cat distinction added (critical accuracy factor)
+//   - Mileage tier input added: affects running car premium ceiling
+//   - NHTSA curb weight lookup (curb_weight_lbs override from API)
 
 import { getLatestPricesForYards } from './priceReports';
 import {
   getVehicleClass,
   getConditionMultiplier,
+  getRunningMileageMultiplier,
   getCatValueRange,
   inferCatTypeFromMake,
   VEHICLE_METAL_COMPOSITION,
@@ -22,8 +30,25 @@ export interface VehicleValuationParams {
   condition:       VehicleConditionId;
   hasCatConverter: boolean;
   catType:         CatTypeId;
-  make?:           string; // optional — used to auto-infer catType if not provided
-  year?:           number; // optional — reserved for future depreciation adjustment
+  make?:           string; // used to auto-infer catType when not provided
+  year?:           number; // reserved for future depreciation / NHTSA lookup
+  /**
+   * OEM cats have real PGM content ($50–$1,200+).
+   * Aftermarket/replacement cats are nearly worthless ($5–$50).
+   * Missing this field defaults to OEM.
+   */
+  catIsOem?:       boolean;
+  /**
+   * Mileage in miles. Only used when condition = 'runs_drives'.
+   * <150k = rebuild candidate (max premium)
+   * >250k = no running premium (scrap only)
+   */
+  mileage?:        number;
+  /**
+   * Actual curb weight in lbs from NHTSA vPIC API.
+   * When provided, overrides the class-average fallback weight.
+   */
+  curbWeightLbs?:  number;
   /** If provided, prices are overlaid from nearby real yard reports */
   nearbyYardIds?:  string[];
 }
@@ -45,6 +70,7 @@ export interface VehicleValuationResult {
   catConverter: {
     included: boolean;
     catType:  CatTypeId;
+    isOem:    boolean;
     low:      number;
     high:     number;
   };
@@ -52,6 +78,8 @@ export interface VehicleValuationResult {
   subtotalMetalsHigh:  number;
   estimateLow:         number;
   estimateHigh:        number;
+  /** True when mileage caused the running premium to be capped/reduced */
+  mileageLimitedPremium: boolean;
   /** Prices came from real yard reports (true) or fallback estimates (false) */
   usedLiveData:        boolean;
 }
@@ -70,7 +98,9 @@ export async function estimateVehicleValue(
   params: VehicleValuationParams,
 ): Promise<VehicleValuationResult> {
   const vehicleClass = getVehicleClass(params.vehicleClass);
-  const conditionMultiplier = getConditionMultiplier(params.condition);
+
+  // Use NHTSA-supplied curb weight when available, else class average
+  const vehicleWeightLbs = params.curbWeightLbs ?? vehicleClass.weightLbs;
 
   // Resolve cat type: explicit > inferred from make > fallback 'unknown'
   const catType: CatTypeId =
@@ -80,7 +110,21 @@ export async function estimateVehicleValue(
         ? inferCatTypeFromMake(params.make)
         : 'unknown';
 
-  const catRange = getCatValueRange(catType);
+  // OEM vs aftermarket: aftermarket forces catType to 'aftermarket' value range
+  const isOem = params.catIsOem !== false; // default true
+  const effectiveCatType: CatTypeId = isOem ? catType : 'aftermarket';
+  const catRange = getCatValueRange(effectiveCatType);
+
+  // Condition multiplier — mileage adjusts running premium
+  let conditionMultiplier = getConditionMultiplier(params.condition);
+  let mileageLimitedPremium = false;
+
+  if (params.condition === 'runs_drives' && params.mileage !== undefined) {
+    const mileageMultiplier = getRunningMileageMultiplier(params.mileage);
+    // If mileage reduces the premium below default (1.55), flag it
+    if (mileageMultiplier < conditionMultiplier) mileageLimitedPremium = true;
+    conditionMultiplier = mileageMultiplier;
+  }
 
   // Fetch latest prices from nearby yards (if yard IDs provided)
   let liveByMetal: Record<string, { low: number; high: number }> = {};
@@ -108,9 +152,9 @@ export async function estimateVehicleValue(
     }
   }
 
-  // Build metal line items
+  // Build metal line items using actual curb weight
   const metalBreakdown: MetalLineItem[] = VEHICLE_METAL_COMPOSITION.map(({ metalType, fraction }) => {
-    const weightLbs = vehicleClass.weightLbs * fraction;
+    const weightLbs = vehicleWeightLbs * fraction;
     const live = liveByMetal[metalType];
     const fallback = FALLBACK_VEHICLE_PRICES[metalType] ?? { low: 0.05, high: 0.15 };
     const pricePerLbLow  = live?.low  ?? fallback.low;
@@ -134,7 +178,7 @@ export async function estimateVehicleValue(
   const metalAfterConditionLow  = subtotalMetalsLow  * conditionMultiplier;
   const metalAfterConditionHigh = subtotalMetalsHigh * conditionMultiplier;
 
-  // Cat converter is either full value or zero (stripped/EV)
+  // Cat converter value — zero if stripped or EV
   const catLow  = params.hasCatConverter ? catRange.low  : 0;
   const catHigh = params.hasCatConverter ? catRange.high : 0;
 
@@ -142,12 +186,13 @@ export async function estimateVehicleValue(
   const estimateHigh = parseFloat((metalAfterConditionHigh + catHigh).toFixed(2));
 
   return {
-    vehicleWeightLbs:    vehicleClass.weightLbs,
+    vehicleWeightLbs,
     conditionMultiplier,
     metalBreakdown,
     catConverter: {
       included: params.hasCatConverter,
-      catType,
+      catType:  effectiveCatType,
+      isOem,
       low:  catLow,
       high: catHigh,
     },
@@ -155,6 +200,7 @@ export async function estimateVehicleValue(
     subtotalMetalsHigh: parseFloat(subtotalMetalsHigh.toFixed(2)),
     estimateLow,
     estimateHigh,
+    mileageLimitedPremium,
     usedLiveData,
   };
 }

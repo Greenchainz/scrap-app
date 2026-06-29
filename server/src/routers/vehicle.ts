@@ -13,8 +13,8 @@ import {
 import { estimateVehicleValue } from '../vehicleValuation';
 import {
   findNearbyYardsWithFallback,
-  getSampleYards,
 } from '../yards';
+import { getNHTSACurbWeight, getNHTSACurbWeightByVin } from '../nhtsa';
 
 export const vehicleRouter = router({
 
@@ -40,8 +40,37 @@ export const vehicleRouter = router({
     })),
 
   // ---------------------------------------------------------------------------
+  // lookupVehicleWeight — NHTSA vPIC API lookup for exact curb weight.
+  // Call before estimateVehicle to get a more accurate weight for the vehicle.
+  // ---------------------------------------------------------------------------
+  lookupVehicleWeight: protectedProcedure
+    .input(z.object({
+      vin:   z.string().length(17).optional(),
+      year:  z.number().int().min(1970).max(new Date().getFullYear() + 1).optional(),
+      make:  z.string().max(100).optional(),
+      model: z.string().max(100).optional(),
+    }))
+    .query(async ({ input }) => {
+      let curbWeightLbs: number | null = null;
+      let source: 'vin' | 'ymm' | 'fallback' = 'fallback';
+
+      if (input.vin) {
+        curbWeightLbs = await getNHTSACurbWeightByVin(input.vin);
+        if (curbWeightLbs) source = 'vin';
+      }
+
+      if (!curbWeightLbs && input.year && input.make) {
+        curbWeightLbs = await getNHTSACurbWeight(input.year, input.make, input.model);
+        if (curbWeightLbs) source = 'ymm';
+      }
+
+      return { curbWeightLbs, source };
+    }),
+
+  // ---------------------------------------------------------------------------
   // estimateVehicle — the core valuation endpoint.
   // Returns a full breakdown: metal line items + cat converter + total range.
+  // New fields: vin, model, catIsOem, mileage, curbWeightLbs
   // ---------------------------------------------------------------------------
   estimateVehicle: protectedProcedure
     .input(z.object({
@@ -50,13 +79,32 @@ export const vehicleRouter = router({
       hasCatConverter: z.boolean(),
       catType:         z.enum(CAT_TYPE_IDS as [string, ...string[]]),
       make:            z.string().max(100).optional(),
+      model:           z.string().max(100).optional(),
       year:            z.number().int().min(1970).max(new Date().getFullYear() + 1).optional(),
+      vin:             z.string().length(17).optional(),
+      // OEM vs aftermarket cat — false = aftermarket ($5–$50), default = true (OEM)
+      catIsOem:        z.boolean().optional(),
+      // Mileage — adjusts running car premium ceiling (>250k = no premium)
+      mileage:         z.number().int().min(0).max(2_000_000).optional(),
+      // If caller already fetched NHTSA weight, pass it directly to skip the lookup
+      curbWeightLbs:   z.number().positive().optional(),
       latitude:        z.number().optional(),
       longitude:       z.number().optional(),
       state:           z.string().length(2).optional(),
     }))
     .query(async ({ input, ctx }) => {
-      // Resolve nearby yard IDs for live price overlay (best effort — no error if unavailable)
+      // Resolve actual curb weight — prefer caller-supplied, then NHTSA, then class avg
+      let curbWeightLbs = input.curbWeightLbs;
+      if (!curbWeightLbs) {
+        if (input.vin) {
+          curbWeightLbs = await getNHTSACurbWeightByVin(input.vin) ?? undefined;
+        }
+        if (!curbWeightLbs && input.year && input.make) {
+          curbWeightLbs = await getNHTSACurbWeight(input.year, input.make, input.model) ?? undefined;
+        }
+      }
+
+      // Resolve nearby yard IDs for live price overlay (best effort)
       let nearbyYardIds: string[] = [];
       if (input.latitude != null && input.longitude != null) {
         try {
@@ -80,6 +128,9 @@ export const vehicleRouter = router({
         catType:         input.catType as any,
         make:            input.make,
         year:            input.year,
+        catIsOem:        input.catIsOem,
+        mileage:         input.mileage,
+        curbWeightLbs,
         nearbyYardIds,
       });
 
