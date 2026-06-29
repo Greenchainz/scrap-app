@@ -15,6 +15,8 @@ import {
   findNearbyYardsWithFallback,
 } from '../yards';
 import { getNHTSACurbWeight, getNHTSACurbWeightByVin } from '../nhtsa';
+import { extractMileageFromImage, extractSettlementSlip, analyzeCatFromImage } from '../openai';
+import { toReadableImageUrl } from '../blob';
 
 export const vehicleRouter = router({
 
@@ -154,6 +156,44 @@ export const vehicleRouter = router({
         // Non-fatal
       }
 
+      return result;
+    }),
+
+  // ---------------------------------------------------------------------------
+  // analyzeCatFromImage — GPT-4o vision identifies cat type + value from photo.
+  // User can photograph: the converter itself, the car underside, the vehicle,
+  // or a converter serial number label.
+  // ---------------------------------------------------------------------------
+  analyzeCatFromImage: protectedProcedure
+    .input(z.object({ imageUrl: z.string().url() }))
+    .mutation(async ({ input }) => {
+      const readableUrl = await toReadableImageUrl(input.imageUrl);
+      const result = await analyzeCatFromImage(readableUrl);
+      return result;
+    }),
+
+  // ---------------------------------------------------------------------------
+  // extractMileageFromImage — OCR odometer photo via GPT-4o vision.
+  // Client uploads photo to blob, passes blobUrl here.
+  // ---------------------------------------------------------------------------
+  extractMileageFromImage: protectedProcedure
+    .input(z.object({ imageUrl: z.string().url() }))
+    .mutation(async ({ input }) => {
+      const readableUrl = await toReadableImageUrl(input.imageUrl);
+      const mileage = await extractMileageFromImage(readableUrl);
+      return { mileage };
+    }),
+
+  // ---------------------------------------------------------------------------
+  // extractSettlementSlip — OCR yard payout ticket via GPT-4o vision.
+  // Client uploads slip photo to blob, passes blobUrl here.
+  // Result feeds directly into crowdsourced price reports.
+  // ---------------------------------------------------------------------------
+  extractSettlementSlip: protectedProcedure
+    .input(z.object({ imageUrl: z.string().url() }))
+    .mutation(async ({ input }) => {
+      const readableUrl = await toReadableImageUrl(input.imageUrl);
+      const result = await extractSettlementSlip(readableUrl);
       return result;
     }),
 
