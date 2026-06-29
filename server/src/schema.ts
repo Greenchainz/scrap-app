@@ -96,3 +96,33 @@ export const vehicleValuationLogs = pgTable('vehicle_valuation_logs', {
 
 export type VehicleValuationLog = typeof vehicleValuationLogs.$inferSelect;
 export type NewVehicleValuationLog = typeof vehicleValuationLogs.$inferInsert;
+
+// ─── Yard reviews ─────────────────────────────────────────────────────────────
+// Yelp-style: user rates their experience after visiting a yard.
+// Separate from price reports — captures fairness + experience, not just price.
+
+export const yardReviews = pgTable('yard_reviews', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  yardId:       text('yard_id').notNull(),
+  userId:       text('user_id'),
+  // 1–5 stars
+  rating:       integer('rating').notNull(),
+  // 'fair' | 'lowballed' | 'fair_but_slow' | 'great' | 'avoid'
+  verdict:      text('verdict').notNull(),
+  // What they were selling: 'metal' | 'whole_car' | 'catalytic_converter' | 'parts'
+  saleType:     text('sale_type').notNull().default('metal'),
+  // Optional: what they expected vs got (for cars)
+  offeredPrice: real('offered_price'),
+  actualPrice:  real('actual_price'),
+  comment:      text('comment'),
+  // Whether the yard responded to this review
+  yardResponded: boolean('yard_responded').notNull().default(false),
+  yardResponse:  text('yard_response'),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('yr_yard_id_idx').on(t.yardId),
+  index('yr_created_at_idx').on(t.createdAt),
+]);
+
+export type YardReview = typeof yardReviews.$inferSelect;
+export type NewYardReview = typeof yardReviews.$inferInsert;
