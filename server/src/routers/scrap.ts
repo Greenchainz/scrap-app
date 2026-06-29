@@ -13,6 +13,7 @@ import {
   distanceMiles,
   type NearbyFallbackMode,
 } from '../yards';
+import { getLatestPricesForYards } from '../priceReports';
 
 const AnalyzeInputSchema = z.object({
   imageUrl: z.string().url(),
@@ -182,7 +183,7 @@ export const scrapRouter = router({
         limit: z.number().min(1).max(30).default(8),
       }),
     )
-    .query(({ input }) => {
+    .query(async ({ input }) => {
       const { metals, latitude, longitude, state, limit, maxRadiusMiles } = input;
 
       // Resolve yard list with radius cap + automatic fallback.
@@ -239,8 +240,23 @@ export const scrapRouter = router({
       // Sort by totalHigh descending — best payout first.
       results.sort((a, b) => b.totalHigh - a.totalHigh);
 
+      // Overlay real crowd-sourced / staff-called prices from the DB.
+      const sliced = results.slice(0, limit);
+      const realPrices = await getLatestPricesForYards(sliced.map(r => r.yard.id));
+
       return {
-        yards: results.slice(0, limit),
+        yards: sliced.map(r => ({
+          ...r,
+          // reportedPrices: actual prices people were paid — shown alongside estimates.
+          reportedPrices: (realPrices[r.yard.id] ?? []).map(p => ({
+            metalType:  p.metalType,
+            pricePerLb: p.pricePerLb,
+            source:     p.source,     // 'user' | 'staff' | 'scraped'
+            verified:   p.verified,
+            reportedAt: p.reportedAt.toISOString(),
+            ageHours:   Math.round((Date.now() - p.reportedAt.getTime()) / 3_600_000),
+          })),
+        })),
         fallbackMode,
         searchRadiusMiles,
       };
