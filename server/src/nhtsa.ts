@@ -95,7 +95,7 @@ export async function getNHTSACurbWeight(
       return null;
     }
 
-    const data: { Results?: { CW?: string }[] } = await res.json();
+    const data = (await res.json()) as { Results?: { CW?: string }[] };
     const cw = parseFloat(data?.Results?.[0]?.CW ?? '');
     const result = isNaN(cw) || cw <= 100 ? null : cw;
     cacheSet(cacheKey, result);
@@ -134,7 +134,7 @@ export async function getNHTSACurbWeightByVin(vin: string): Promise<number | nul
       return null;
     }
 
-    const data: { Results?: { CurbWeightLB?: string }[] } = await res.json();
+    const data = (await res.json()) as { Results?: { CurbWeightLB?: string }[] };
     const cw = parseFloat(data?.Results?.[0]?.CurbWeightLB ?? '');
     const result = isNaN(cw) || cw <= 100 ? null : cw;
     cacheSet(cacheKey, result);
