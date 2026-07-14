@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { trpc, createTrpcClient } from './utils/trpc.js';
 import CameraScreen, { type ScanResult } from './screens/CameraScreen.js';
@@ -30,11 +30,22 @@ export default function App() {
   const [trpcClient] = useState(createTrpcClient);
   const [screen, setScreen] = useState<Screen>('camera');
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [sessionScans, setSessionScans] = useState<ScanResult[]>([]);
+
+  const sessionTotalLow = useMemo(
+    () => parseFloat(sessionScans.reduce((sum, s) => sum + s.estimatedValueLow, 0).toFixed(2)),
+    [sessionScans],
+  );
+  const sessionTotalHigh = useMemo(
+    () => parseFloat(sessionScans.reduce((sum, s) => sum + s.estimatedValueHigh, 0).toFixed(2)),
+    [sessionScans],
+  );
   const [activeYard, setActiveYard] = useState<YardNav | null>(null);
   const [reviewYard, setReviewYard] = useState<{ id: string; name: string } | null>(null);
 
   const handleScanComplete = (result: ScanResult) => {
     setScanResult(result);
+    setSessionScans((prev) => [...prev, result]);
     setScreen('results');
   };
 
@@ -48,6 +59,10 @@ export default function App() {
     setScreen('results');
   };
 
+  const handleResetSession = () => {
+    setSessionScans([]);
+    setScanResult(null);
+    setScreen('camera');
   const handleOpenYard = (yard: YardNav) => {
     setActiveYard(yard);
     setScreen('yard_profile');
@@ -64,7 +79,13 @@ export default function App() {
         return <CameraScreen onScanComplete={handleScanComplete} />;
       case 'results':
         return scanResult ? (
-          <ResultsScreen result={scanResult} onScanAgain={handleScanAgain} />
+          <ResultsScreen
+            result={scanResult}
+            onScanAgain={handleScanAgain}
+            sessionCount={sessionScans.length}
+            sessionTotalLow={sessionTotalLow}
+            sessionTotalHigh={sessionTotalHigh}
+          />
         ) : null;
       case 'history':
         return <HistoryScreen onSelectScan={handleSelectHistory} />;
@@ -98,6 +119,19 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <SafeAreaView style={styles.safeArea}>
           <StatusBar style="light" />
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Scrappalot</Text>
+            <View style={styles.headerActions}>
+              {sessionScans.length > 0 && (
+                <TouchableOpacity onPress={handleResetSession} style={styles.resetButton}>
+                  <Text style={styles.resetText}>Reset</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => setScreen(screen === 'history' ? 'camera' : 'history')}>
+                <Text style={styles.headerAction}>{screen === 'history' ? 'Camera' : 'History'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           {!hideAppHeader && (
             <View style={styles.header}>
               <Text style={styles.headerTitle}>Scrappalot</Text>
@@ -155,6 +189,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  resetButton: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  resetText: {
+    fontSize: 13,
+    color: '#ffffff',
+    fontWeight: '600',
   },
   headerAction: {
     fontSize: 14,

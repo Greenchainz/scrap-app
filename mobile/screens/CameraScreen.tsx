@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  KeyboardAvoidingView,
   Animated,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
@@ -104,6 +105,7 @@ export default function CameraScreen({ onScanComplete }: Props) {
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [facing] = useState<CameraType>('back');
   const [analyzing, setAnalyzing] = useState(false);
+  const [yearInput, setYearInput] = useState('');
   const [brand, setBrand] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
   const cameraRef = useRef<CameraView>(null);
@@ -219,6 +221,10 @@ export default function CameraScreen({ onScanComplete }: Props) {
         latitude,
         longitude,
         state,
+        manufactureYear: (() => {
+          const y = parseInt(yearInput, 10);
+          return !isNaN(y) && y >= 1900 && y <= 2026 ? y : undefined;
+        })(),
         brand: brand.trim() || undefined,
         serialNumber: serialNumber.trim() || undefined,
       });
@@ -237,9 +243,21 @@ export default function CameraScreen({ onScanComplete }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <CameraView style={styles.camera} facing={facing} ref={cameraRef}>
         <View style={styles.overlay}>
+          <View style={styles.yearRow}>
+            <TextInput
+              style={styles.yearInput}
+              placeholder="Year made (optional)"
+              placeholderTextColor="rgba(255,255,255,0.6)"
+              keyboardType="number-pad"
+              maxLength={4}
+              value={yearInput}
+              onChangeText={setYearInput}
+              returnKeyType="done"
+            />
+          </View>
           {analyzing ? (
             <View style={styles.analyzingContainer}>
               {/* Radar spin ring */}
@@ -291,7 +309,7 @@ export default function CameraScreen({ onScanComplete }: Props) {
           )}
         </View>
       </CameraView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -309,6 +327,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingBottom: Platform.OS === 'ios' ? 48 : 32,
   },
+  yearRow: {
+    width: '100%',
+    paddingHorizontal: 32,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  yearInput: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: '#ffffff',
+    textAlign: 'center',
+    width: 200,
   captureWrapper: {
     alignItems: 'center',
     justifyContent: 'center',

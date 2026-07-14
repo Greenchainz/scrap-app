@@ -20,6 +20,7 @@ const AnalyzeInputSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   state: z.string().optional(),
+  manufactureYear: z.number().int().min(1900).max(2026).optional(),
   brand: z.string().optional(),
   serialNumber: z.string().optional(),
 });
@@ -38,6 +39,7 @@ export const scrapRouter = router({
 
       let analysis: Awaited<ReturnType<typeof analyzeScrapImage>>;
       try {
+        analysis = await analyzeScrapImage(input.imageUrl, multiplier, input.manufactureYear);
         // The stored container is private, so mint a short-lived read SAS URL
         // for the (otherwise inaccessible) blob before handing it to OpenAI.
         const readableImageUrl = await toReadableImageUrl(input.imageUrl);
