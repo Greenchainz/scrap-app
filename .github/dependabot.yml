@@ -1,0 +1,44 @@
+version: 2
+updates:
+  # npm workspaces monorepo (root covers server + mobile workspaces).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    # Group updates to avoid the PR spam of one-PR-per-package. Security fixes
+    # still open promptly; routine bumps are batched.
+    groups:
+      production-dependencies:
+        applies-to: version-updates
+        dependency-type: "production"
+      development-dependencies:
+        applies-to: version-updates
+        dependency-type: "development"
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+
+  # Keep CI workflow actions patched.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"

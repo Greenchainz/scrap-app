@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  Animated,
 } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -17,6 +18,34 @@ import { cacheScan } from '../utils/cache.js';
 
 type Props = {
   onScanComplete: (result: ScanResult) => void;
+};
+
+export type DecodedEra = {
+  brand: string;
+  year: number | null;
+  month: number | null;
+  candidateYears: number[];
+  confidence: 'high' | 'medium' | 'low';
+  identifierType?: 'appliance_serial' | 'battery_serial' | 'vin';
+  manufacturer?: string | null;
+  chemistry?: 'NMC' | 'LFP' | 'NCA' | 'LMO' | 'unknown' | null;
+  batteryEra?: string | null;
+  note?: string;
+};
+
+export type EraProfile = {
+  epoch: 'heavy_iron' | 'polymer_shift' | 'high_efficiency' | 'smart_ie5';
+  label: string;
+  yearsLabel: string;
+  structuralMaterial: string;
+  motorWinding: 'copper' | 'aluminum' | 'mixed';
+  washerWeightLbs: { low: number; high: number };
+  insights: string[];
+};
+
+export type EraInfo = {
+  decoded: DecodedEra;
+  profile: EraProfile | null;
 };
 
 export type ScanResult = {
@@ -32,9 +61,44 @@ export type ScanResult = {
   extractionSteps: string[];
   difficulty: 'easy' | 'moderate' | 'hard';
   safetyWarnings: string[];
+  batteryPassport: {
+    stateOfHealthPct: number | null;
+    cycleCount: number | null;
+    manufacturer: string | null;
+    chemistry: string | null;
+    passportId: string | null;
+    complianceStatus: 'compliant' | 'partial' | 'missing';
+    captureRecommendations: string[];
+  };
+  batteryPassportHooks: {
+    ready: boolean;
+    capturePath: string;
+    uploadPath: string;
+    fields: {
+      stateOfHealthPct: number | null;
+      cycleCount: number | null;
+      manufacturer: string | null;
+      chemistry: string | null;
+      passportId: string | null;
+      vinOrSerial: string | null;
+    };
+  };
+  liveBatteryPricingRoadmap: string[];
   estimatedValueLow: number;
   estimatedValueHigh: number;
   imageUrl: string;
+  era?: EraInfo | null;
+  /** Battery compliance data returned by the AI (null when no battery detected). */
+  battery?: {
+    chemistry: string | null;
+    stateOfHealth: string | null;
+    cycleCount: number | null;
+    batteryPassportPresent: boolean | null;
+  } | null;
+  /** Device location at capture time — used for yard-comparison feature. */
+  latitude?: number;
+  longitude?: number;
+  state?: string;
 };
 
 export default function CameraScreen({ onScanComplete }: Props) {
@@ -42,7 +106,55 @@ export default function CameraScreen({ onScanComplete }: Props) {
   const [facing] = useState<CameraType>('back');
   const [analyzing, setAnalyzing] = useState(false);
   const [yearInput, setYearInput] = useState('');
+  const [brand, setBrand] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
   const cameraRef = useRef<CameraView>(null);
+
+  // Pulsing glow ring behind capture button
+  const glowScale = useRef(new Animated.Value(1)).current;
+  const glowOpacity = useRef(new Animated.Value(0.6)).current;
+  // Radar spin while analyzing — store loop ref so we can stop it cleanly
+  const radarRotation = useRef(new Animated.Value(0)).current;
+  const radarLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    // Glow pulse — always running
+    Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(glowScale, { toValue: 1.45, duration: 900, useNativeDriver: true }),
+          Animated.timing(glowOpacity, { toValue: 0, duration: 900, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(glowScale, { toValue: 1, duration: 0, useNativeDriver: true }),
+          Animated.timing(glowOpacity, { toValue: 0.6, duration: 0, useNativeDriver: true }),
+        ]),
+      ]),
+    ).start();
+  }, [glowScale, glowOpacity]);
+
+  useEffect(() => {
+    if (analyzing) {
+      radarRotation.setValue(0);
+      radarLoopRef.current = Animated.loop(
+        Animated.timing(radarRotation, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      );
+      radarLoopRef.current.start();
+    } else {
+      radarLoopRef.current?.stop();
+      radarLoopRef.current = null;
+      radarRotation.setValue(0);
+    }
+  }, [analyzing, radarRotation]);
+
+  const radarSpin = radarRotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   const getSasToken = trpc.scrap.getSasToken.useMutation();
   const analyzeImage = trpc.scrap.analyzeImage.useMutation();
@@ -113,9 +225,11 @@ export default function CameraScreen({ onScanComplete }: Props) {
           const y = parseInt(yearInput, 10);
           return !isNaN(y) && y >= 1900 && y <= 2026 ? y : undefined;
         })(),
+        brand: brand.trim() || undefined,
+        serialNumber: serialNumber.trim() || undefined,
       });
 
-      const scanResult: ScanResult = { ...result, imageUrl: blobUrl };
+      const scanResult: ScanResult = { ...result, imageUrl: blobUrl, latitude, longitude, state };
 
       await cacheScan({ ...scanResult, cachedAt: new Date().toISOString() });
       onScanComplete(scanResult);
@@ -146,13 +260,52 @@ export default function CameraScreen({ onScanComplete }: Props) {
           </View>
           {analyzing ? (
             <View style={styles.analyzingContainer}>
-              <ActivityIndicator size="large" color="#ffffff" />
+              {/* Radar spin ring */}
+              <View style={styles.radarWrapper}>
+                <Animated.View
+                  style={[styles.radarRing, { transform: [{ rotate: radarSpin }] }]}
+                />
+                <ActivityIndicator size="large" color="#ffffff" style={styles.radarSpinner} />
+              </View>
               <Text style={styles.analyzingText}>Analyzing metals...</Text>
             </View>
           ) : (
-            <TouchableOpacity style={styles.captureButton} onPress={handleCapture}>
-              <View style={styles.captureInner} />
-            </TouchableOpacity>
+            <>
+              <View style={styles.inputPanel}>
+                <Text style={styles.inputHint}>Add EV brand + VIN/serial to unlock battery chemistry and passport insights</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Brand (optional, e.g. Whirlpool)"
+                  placeholderTextColor="rgba(255,255,255,0.7)"
+                  value={brand}
+                  onChangeText={setBrand}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Serial # (optional)"
+                  placeholderTextColor="rgba(255,255,255,0.7)"
+                  value={serialNumber}
+                  onChangeText={setSerialNumber}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                />
+              </View>
+
+              {/* Pulsing glow ring + capture button */}
+              <View style={styles.captureWrapper}>
+                <Animated.View
+                  style={[
+                    styles.glowRing,
+                    { transform: [{ scale: glowScale }], opacity: glowOpacity },
+                  ]}
+                />
+                <TouchableOpacity style={styles.captureButton} onPress={handleCapture}>
+                  <View style={styles.captureInner} />
+                </TouchableOpacity>
+              </View>
+            </>
           )}
         </View>
       </CameraView>
@@ -191,6 +344,16 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     textAlign: 'center',
     width: 200,
+  captureWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glowRing: {
+    position: 'absolute',
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(26, 127, 75, 0.55)',
   },
   captureButton: {
     width: 72,
@@ -208,10 +371,50 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: '#ffffff',
   },
+  inputPanel: {
+    width: '100%',
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    gap: 8,
+  },
+  inputHint: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  input: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: '#ffffff',
+    fontSize: 15,
+  },
   analyzingContainer: {
     alignItems: 'center',
     gap: 12,
     paddingBottom: 48,
+  },
+  radarWrapper: {
+    width: 80,
+    height: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radarRing: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: '#1a7f4b',
+    borderTopColor: 'transparent',
+  },
+  radarSpinner: {
+    position: 'absolute',
   },
   analyzingText: {
     color: '#ffffff',

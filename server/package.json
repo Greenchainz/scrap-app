@@ -8,29 +8,31 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@azure/identity": "^4.13.1",
     "@azure/openai": "^2.0.0",
-    "@azure/storage-blob": "^12.27.0",
-    "openai": "^4.97.0",
-    "@trpc/server": "^11.0.0",
+    "@azure/storage-blob": "^12.33.0",
+    "@trpc/server": "^11.18.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
-    "express": "^4.21.2",
-    "pg": "^8.13.3",
-    "zod": "^3.24.2"
+    "express": "^5.2.1",
+    "openai": "^6.45.0",
+    "pg": "^8.22.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
-    "@types/node": "^22.14.1",
+    "@types/node": "^26.0.1",
     "@types/pg": "^8.11.11",
-    "@typescript-eslint/eslint-plugin": "^8.31.0",
+    "@typescript-eslint/eslint-plugin": "^8.62.0",
     "@typescript-eslint/parser": "^8.31.0",
-    "eslint": "^9.25.1",
+    "eslint": "^10.6.0",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.3"
+    "typescript": "^6.0.3"
   }
 }
