@@ -63,6 +63,8 @@ export default function App() {
     setSessionScans([]);
     setScanResult(null);
     setScreen('camera');
+  };
+
   const handleOpenYard = (yard: YardNav) => {
     setActiveYard(yard);
     setScreen('yard_profile');

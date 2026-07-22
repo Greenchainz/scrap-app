@@ -344,6 +344,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     textAlign: 'center',
     width: 200,
+  },
   captureWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
