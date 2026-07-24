@@ -194,10 +194,8 @@ export async function analyzeScrapImage(
       messages: [
         {
           role: 'system',
-          content:
-            `You are an expert scrap metal recycler. Analyze objects, identify recyclable metals with WEIGHT RANGES (e.g. "2-4 lbs"), provide step-by-step extraction instructions, safety warnings. Return strict JSON only.${eraContext}`,
           content: [
-            'You are an expert scrap metal recycler and e-waste specialist.',
+            `You are an expert scrap metal recycler and e-waste specialist. Analyze objects, identify recyclable metals with WEIGHT RANGES (e.g. "2-4 lbs"), provide step-by-step extraction instructions, safety warnings. Return strict JSON only. ${eraContext}`,
             'Analyze the object in the image and identify ALL recyclable metals and materials, including:',
             '- Standard scrap metals: copper (bare bright, #1, #2, ICW, ACR), brass, bronze, aluminum, stainless, electric motors, sealed units, light iron/steel.',
             '- EV and battery components: lithium-ion battery modules/packs (NMC, LFP, NCA), EV copper busbars, battery management system (BMS) boards, black mass.',
